@@ -14,4 +14,4 @@ void* runIteration(void* args);
 template<class T>
 std::string FmtCmma(T value);
 void printHelpMsg();
-bool parseArgs(int argc, char* argv[], int &uniques, int& rarityN, int&rarityD, int&threads, int& sims, std::string& fileName);
+bool parseArgs(int argc, char* argv[], int &uniques, int& rarityN, int&rarityD, int&threads, int& sims, std::string& fileName, std::string& uniqueWeighting);

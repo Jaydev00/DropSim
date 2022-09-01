@@ -1,14 +1,16 @@
 #include "simulation.h"
-
 struct ThreadData
 {
     public:
-        ThreadData(int nrarityN, int nrarityD, int nuniques, int niterations){
+        ThreadData(int nrarityN, int nrarityD, int nuniques, int niterations, std::vector<std::pair<int,int>> nWeightings){
             rarityN = nrarityN;
             rarityD = nrarityD;
             uniques = nuniques;
             iterations = niterations;
+            for(int i = 0; i < nWeightings.size(); i++)
+                weightings.push_back(nWeightings[i]);
         }
+        std::vector<std::pair<int,int>> weightings;
         int rarityN;
         int rarityD;
         int uniques;
@@ -23,9 +25,11 @@ void printHelpMsg(){
     std::cout << "-u <uniques>\t\t\t: (Required) number of unique items to collect." << std::endl;
     std::cout << "-r <rarity N> <rarity D>\t: (Required) Rarity of items n/d" << std::endl;
     std::cout << "-f <fileName>\t\t\t: name of file to output simulation results." << std::endl;
+    std::cout << "-U <fileName>\t\t\t: name of the file with unique weighting for uniques with different rates" << std::endl;
+    std::cout << "-m <mode>\t\t\t : simulation mode normal | barrows | item (not implemented)" << std::endl;
 }
 
-bool parseArgs(int argc, char* argv[], int &uniques, int& rarityN, int&rarityD, int&threads, int& sims, std::string& fileName){
+bool parseArgs(int argc, char* argv[], int &uniques, int& rarityN, int&rarityD, int&threads, int& sims, std::string& fileName, std::string& uniqueWeighting){
     bool result = true;
     for(int i = 1; i < argc; i++){
         if(!strcmp(argv[i], "-h")){
@@ -67,6 +71,13 @@ bool parseArgs(int argc, char* argv[], int &uniques, int& rarityN, int&rarityD, 
                 std::cout << "-r specified but no argument given.";
                 result = false;
             }
+        } else if(!strcmp(argv[i], "-U")){
+            if(argc >= i+1){
+                uniqueWeighting = argv[i+1];
+            } else {
+                std::cout << "-U specified but no argument given.";
+                result = false;
+            }
         }
     }
     if (sims == 0 ||
@@ -93,8 +104,9 @@ int main(int argc, char* argv[]){
     int rarityD = 0;
     int threads = 0;
     int sims = 0;
-    std::string fileName = "";
-    if(!parseArgs(argc, argv, uniques, rarityN, rarityD, threads, sims, fileName)){
+    std::string outputFileName = "";
+    std::string uniquesFileName = "";
+    if(!parseArgs(argc, argv, uniques, rarityN, rarityD, threads, sims, outputFileName, uniquesFileName)){
         printHelpMsg();
         return -1;
     }
@@ -108,15 +120,29 @@ int main(int argc, char* argv[]){
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
     std::vector<std::pair<unsigned long long, unsigned long long>> results;
     std::vector<ThreadData*> threadArguments;
+    std::vector<std::pair<int,int>> weightings;
+
+    if(uniquesFileName != ""){
+        std::ifstream inputFile;
+        inputFile.open(uniquesFileName);
+        for(std::string temp; std::getline(inputFile, temp);){
+    
+            weightings.push_back(std::pair<int,int>(
+                stoi(temp.substr(0,temp.find(","))),
+                stoi(temp.substr(temp.find(",") + 1, temp.length()))
+                ));
+        }
+    }
     for(int i = 0; i < threads; i++)
-        threadArguments.push_back(new ThreadData(rarityN, rarityD, uniques, (sims/threads)+1));
+        threadArguments.push_back(new ThreadData(rarityN, rarityD, uniques, (sims/threads)+1, weightings));
     pthread_t threadIds[threads];
     std::vector<std::pair<unsigned long long, unsigned long long>>* threadResults;
+
+    //create threads
     for(int i = 0; i < threads; i++){
         pthread_create(&threadIds[i], NULL, &runIteration, (void*)threadArguments[i]);
         std::cout << "Creating thread " << i << " " << threadIds[i] << std::endl;
     }
-
     for(int i = 0; i < threads; i++){
         std::cout << "waiting for thread " << i << " " << threadIds[i] << std::endl;
         pthread_join(threadIds[i],(void**) &threadResults);
@@ -130,6 +156,9 @@ int main(int argc, char* argv[]){
     for(ThreadData* ptr : threadArguments){
         delete ptr;
     }
+    //end threaded work
+
+
     //runIteration((void*) data);
     unsigned long long sumAttempts = 0;
     unsigned long long sumItems = 0;
@@ -142,11 +171,11 @@ int main(int argc, char* argv[]){
     std::printf("\n\n\n============================================================================================\n");
     printf("Simulation took %f Seconds.\n", time_span.count());
 
-    if(fileName != ""){
-        std::ofstream myfile;
-        myfile.open(fileName);
+    if(outputFileName != ""){
+        std::ofstream outFile;
+        outFile.open(outputFileName);
         for(std::pair<unsigned long long, unsigned long long> iteration : results){
-            myfile << iteration.first << "," << iteration.second << std::endl;
+            outFile << iteration.first << "," << iteration.second << std::endl;
             sumAttempts += iteration.first;
             sumItems += iteration.second;
             if(iteration.first > highest_attempt){
@@ -158,7 +187,7 @@ int main(int argc, char* argv[]){
                 lowestAttemptItems = iteration.second;
             }
         }
-        myfile.close();
+        outFile.close();
     } else {
         for(std::pair<unsigned long long, unsigned long long> iteration : results){
             sumAttempts += iteration.first;
@@ -175,7 +204,7 @@ int main(int argc, char* argv[]){
     }
     unsigned long long stdSum = 0;
     double standardDev = 0.0;
-    if(fileName != ""){
+    if(outputFileName != ""){
         std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> time_span2 = std::chrono::duration_cast<std::chrono::duration<double>>(t3 - t2);
         printf("finished Writing to file in %f Seconds.\n", time_span2.count());
@@ -230,6 +259,7 @@ void* runIteration(void* data){
     int rarityD = args->rarityD;
     int iterations = args->iterations;
     int lastCount = 0;
+    std::vector<std::pair<int,int>> weightings = args->weightings;
     std::pair<unsigned long long, unsigned long long> output;
     int item;
     int roll = 0;
@@ -252,7 +282,16 @@ void* runIteration(void* data){
         while (containsZero){
             roll = chanceDistrib(generator);
             if (roll <= rarityN){
-                item = uniqueDistrib(generator);
+                if(weightings.size() > 0){
+                    //translate roll into item based on weighting
+                    for(int i = 0; i < weightings.size(); i++){
+                        if(roll > weightings[i].first)
+                            continue;    
+                        item = weightings[i].second;
+                        break;
+                    }
+                } else
+                    item = uniqueDistrib(generator);
                 itemsArray[item]++;
                 containsZero = false;
                 for(int i : itemsArray){

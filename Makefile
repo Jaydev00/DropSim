@@ -1,6 +1,6 @@
 OBJS = simulation.o
 CXX = g++
-DEBUG = -g
+DEBUG = -O3
 CXXFLAGS = -pthread $(DEBUG)
 LDFLAGS = -pthread $(DEBUG)
 
