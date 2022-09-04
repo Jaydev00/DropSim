@@ -33,9 +33,11 @@ void printHelpMsg(){
     std::cout << "-U <fileName>\t\t\t: name of the file with unique weighting for uniques with different rates" << std::endl;
     std::cout << "-c <num items>\t\t\t: only simulate until a given number of items are obtained instead of all." << std::endl;
     std::cout << "-g <fileName>\t\t\t: File with already obtained items \n\t\t\t\t  Include all items | in the same order as weighting if applicable" << std::endl;
+    std::cout << "-v \t\t\t\t: Verbose output" << std::endl;
+
 }
 
-bool parseArgs(int argc, char* argv[], int &uniques, int& rarityN, int&rarityD, int&threads, int& sims, int& itemCount, std::string& fileName, std::string& uniqueWeighting, std::string& obtainedFileName){
+bool parseArgs(int argc, char* argv[], int &uniques, int& rarityN, int&rarityD, int&threads, int& sims, int& itemCount, std::string& fileName, std::string& uniqueWeighting, std::string& obtainedFileName, bool& verboseLogging){
     bool result = true;
     for(int i = 1; i < argc; i++){
         if(!strcmp(argv[i], "-h")){
@@ -84,21 +86,23 @@ bool parseArgs(int argc, char* argv[], int &uniques, int& rarityN, int&rarityD, 
                 std::cout << "-U specified but no argument given.";
                 result = false;
             }
-        }else if(!strcmp(argv[i], "-c")){
+        } else if(!strcmp(argv[i], "-c")){
             if(argc >= i+1){
                 itemCount = atoi(argv[i+1]);
             } else {
                 std::cout << "-c specified but no argument given.";
                 result = false;
             }
-        }else if(!strcmp(argv[i], "-g")){
+        } else if(!strcmp(argv[i], "-g")){
             if(argc >= i+1){
                 obtainedFileName = argv[i+1];
             } else {
                 std::cout << "-g specified but no argument given.";
                 result = false;
             }
-        }
+        } else if(!strcmp(argv[i], "-v")){
+            verboseLogging = true;
+        } 
     }
     if (sims == 0 ||
         threads == 0 ||
@@ -125,10 +129,11 @@ int main(int argc, char* argv[]){
     int threads = 0;
     int sims = 0;
     int itemCount = 0;
+    bool verboseLogging = false;
     std::string outputFileName = "";
     std::string uniquesFileName = "";
     std::string obtainedFileName = "";
-    if(!parseArgs(argc, argv, uniques, rarityN, rarityD, threads, sims, itemCount, outputFileName, uniquesFileName, obtainedFileName)){
+    if(!parseArgs(argc, argv, uniques, rarityN, rarityD, threads, sims, itemCount, outputFileName, uniquesFileName, obtainedFileName, verboseLogging)){
         printHelpMsg();
         return -1;
     }
@@ -173,13 +178,16 @@ int main(int argc, char* argv[]){
     //create threads
     for(int i = 0; i < threads; i++){
         pthread_create(&threadIds[i], NULL, &runIteration, (void*)threadArguments[i]);
-        std::cout << "Creating thread " << i << " " << threadIds[i] << std::endl;
+        if(verboseLogging)
+            std::cout << "Creating thread " << i << " " << threadIds[i] << std::endl;
     }
     for(int i = 0; i < threads; i++){
-        std::cout << "waiting for thread " << i << " " << threadIds[i] << std::endl;
+        if(verboseLogging)
+            std::cout << "waiting for thread " << i << " " << threadIds[i] << std::endl;
         pthread_join(threadIds[i],(void**) &threadResults);
         std::vector<std::pair<unsigned long long, unsigned long long>> localVector = *threadResults;
-        std::cout << "pulling " << FmtCmma(localVector.size()) << " sims" << std::endl;
+        if(verboseLogging)
+            std::cout << "pulling " << FmtCmma(localVector.size()) << " sims" << std::endl;
         for(std::pair<unsigned long long, unsigned long long> singleIteration : localVector){
             results.push_back(singleIteration);
         }
