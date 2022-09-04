@@ -30,7 +30,7 @@ void printHelpMsg(){
     std::cout << "-u <uniques>\t\t\t: (Required) number of unique items to collect." << std::endl;
     std::cout << "-r <rarity N> <rarity D>\t: (Required) Rarity of items n/d" << std::endl;
     std::cout << "-f <fileName>\t\t\t: name of file to output simulation results." << std::endl;
-    std::cout << "-U <fileName>\t\t\t: name of the file with unique weighting for uniques with different rates" << std::endl;
+    std::cout << "-w <fileName>\t\t\t: name of the file with unique weighting for uniques with different rates" << std::endl;
     std::cout << "-c <num items>\t\t\t: only simulate until a given number of items are obtained instead of all." << std::endl;
     std::cout << "-g <fileName>\t\t\t: File with already obtained items \n\t\t\t\t  Include all items | in the same order as weighting if applicable" << std::endl;
     std::cout << "-v \t\t\t\t: Verbose output" << std::endl;
@@ -79,11 +79,11 @@ bool parseArgs(int argc, char* argv[], int &uniques, int& rarityN, int&rarityD, 
                 std::cout << "-r specified but no argument given.";
                 result = false;
             }
-        } else if(!strcmp(argv[i], "-U")){
+        } else if(!strcmp(argv[i], "-w")){
             if(argc >= i+1){
                 uniqueWeighting = argv[i+1];
             } else {
-                std::cout << "-U specified but no argument given.";
+                std::cout << "-w specified but no argument given.";
                 result = false;
             }
         } else if(!strcmp(argv[i], "-c")){
