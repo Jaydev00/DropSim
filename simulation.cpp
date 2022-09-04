@@ -171,7 +171,9 @@ int main(int argc, char* argv[]){
         inputFile.close();
     }
     for(int i = 0; i < threads; i++)
-        threadArguments.push_back(new ThreadData(rarityN, rarityD, uniques, (sims/threads)+1,itemCount, weightings, givenItems));
+        threadArguments.push_back(new ThreadData(rarityN, rarityD, uniques, (sims/threads),itemCount, weightings, givenItems));
+    for(int i = 0; i < sims % threads; i++)
+        threadArguments[i]->iterations++;
     pthread_t threadIds[threads];
     std::vector<std::pair<unsigned long long, unsigned long long>>* threadResults;
 
