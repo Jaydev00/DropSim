@@ -269,7 +269,7 @@ void* trackProgress(void* data){
     ReporterThreadData* args = (ReporterThreadData*) data;
     unsigned long long lastReported = 0;
     unsigned long long tenPercent = args->iterations/100;
-    while(lastReported <= args->iterations && lastReported + tenPercent <= args->iterations){
+    while(lastReported < args->iterations && lastReported + tenPercent < args->iterations){
         std::this_thread::sleep_for(std::chrono::microseconds(50000));
         std::chrono::high_resolution_clock::time_point tx = std::chrono::high_resolution_clock::now(); 
         pthread_mutex_lock(args->progressMutex);
@@ -311,7 +311,7 @@ int main(int argc, char* argv[]){
     unsigned long long iterationProgress = 0;
 
     //std::printf("Running %lld Simulations of %d slots with %d/%d rarity on %d threads.\n", FmtCmma(sims), uniques, FmtCmma(rarityN), FmtCmma(rarityN), threads);
-    std::cout << "Running " << FmtCmma(sims) << " Simulations with " << uniques << " slots with" << FmtCmma(rarityN) << "/" <<FmtCmma(rarityN)  << "rarity on " << threads << " threads.\n" << std::endl;
+    std::cout << "Running " << FmtCmma(sims) << " Simulations with " << uniques << " slots with " << FmtCmma(rarityN) << "/" <<FmtCmma(rarityD)  << " rarity on " << threads << " threads.\n" << std::endl;
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
     std::vector<std::pair<unsigned long long, unsigned long long>> results;
     std::vector<ThreadData*> threadArguments;
@@ -370,7 +370,7 @@ int main(int argc, char* argv[]){
         delete ptr;
     }
     //end threaded work
-    pthread_join(reportThread, NULL);
+   
 
     unsigned long long sumAttempts = 0;
     unsigned long long sumItems = 0;
@@ -382,6 +382,8 @@ int main(int argc, char* argv[]){
     std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
     std::cout << std::endl << std::endl << std::endl << "============================================================================================" << std::endl;
     std::cout << "Simulation took " << time_span.count() << " Seconds." << std::endl;
+    pthread_join(reportThread, NULL);
+    delete(reporterThreadData);
 
     if(outputFileName != ""){
         std::ofstream outFile;
