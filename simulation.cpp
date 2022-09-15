@@ -1,25 +1,54 @@
-#include "simulation.h"
+#include <thread>
+#include <fstream>
+#include <vector>
+#include <mutex>
+#include <pthread.h>
+#include <iostream>
+#include <chrono>
+#include <random>
+#include <iomanip>
+#include <locale>
+#include <string.h>
 struct ThreadData
 {
     public:
-        ThreadData(int nrarityN, int nrarityD, int nuniques, int niterations, int ncount, std::vector<std::pair<int,int>> nWeightings, std::vector<int> ngivenItems){
+        ThreadData(int nrarityN, int nrarityD, int nuniques, unsigned long long niterations, int ncount, pthread_mutex_t* progressTex, unsigned long long* nglobalProgress, std::vector<std::pair<int,int>> nWeightings, std::vector<int> ngivenItems){
             rarityN = nrarityN;
             rarityD = nrarityD;
             uniques = nuniques;
             iterations = niterations;
             count = ncount;
+            progressMutex = progressTex;
+            globalProgress = nglobalProgress;
             for(int i = 0; i < nWeightings.size(); i++)
                 weightings.push_back(nWeightings[i]);
             for(int i : ngivenItems)
                 items.push_back(i);
         }
+        pthread_mutex_t* progressMutex;
         std::vector<std::pair<int,int>> weightings;
         std::vector<int> items;
         int rarityN;
         int rarityD;
         int uniques;
-        int iterations;
         int count;
+        unsigned long long iterations;
+        unsigned long long* globalProgress;
+};
+
+struct ReporterThreadData {
+    public:
+        ReporterThreadData(pthread_mutex_t* nprogressMutex, unsigned long long* nglobalProgress, unsigned long long niterations, std::chrono::high_resolution_clock::time_point* nstartTimePoint){
+            progressMutex = nprogressMutex;
+            globalProgress = nglobalProgress;
+            iterations = niterations;
+            startTimePoint = nstartTimePoint;
+        }
+    pthread_mutex_t* progressMutex;
+    unsigned long long* globalProgress;
+    unsigned long long iterations;
+    std::chrono::high_resolution_clock::time_point* startTimePoint;
+
 };
 
 void printHelpMsg(){
@@ -37,7 +66,7 @@ void printHelpMsg(){
 
 }
 
-bool parseArgs(int argc, char* argv[], int &uniques, int& rarityN, int&rarityD, int&threads, int& sims, int& itemCount, std::string& fileName, std::string& uniqueWeighting, std::string& obtainedFileName, bool& verboseLogging){
+bool parseArgs(int argc, char* argv[], int &uniques, int &rarityN, int &rarityD, int &threads, unsigned long long &sims, int& itemCount, std::string& fileName, std::string& uniqueWeighting, std::string& obtainedFileName, bool& verboseLogging){
     bool result = true;
     for(int i = 1; i < argc; i++){
         if(!strcmp(argv[i], "-h")){
@@ -122,12 +151,146 @@ bool parseArgs(int argc, char* argv[], int &uniques, int& rarityN, int&rarityD, 
     return result;
 }
 
+
+
+template<class T>
+std::string FmtCmma(T value)
+{
+    std::stringstream ss;
+    ss.imbue(std::locale(""));
+    ss << value;
+    return ss.str();
+}
+
+
+static bool checkForZero(std::vector<int>* vec){
+    for(int i : *vec){
+        if(i == 0)
+            return true;
+    }
+    return false;
+}
+
+void* runIteration(void* data){
+    
+    
+    //parse arg data
+    ThreadData* args = ((ThreadData*) data);
+    int numUniques = args->uniques;
+    int rarityN = args->rarityN;
+    int rarityD = args->rarityD;
+    unsigned long long iterations = args->iterations;
+    unsigned long long count = args->count;
+    if(count == 0)
+        count = numUniques;
+    std::vector<int> givenItems = args->items;
+    std::vector<std::pair<int,int>> weightings = args->weightings;
+
+    //init local variables
+    std::pair<unsigned long long, unsigned long long> output;
+    int missingUniques = 0;
+    int item;
+    int roll = 0;
+    int itemsArray[numUniques+1];
+    unsigned long long progress;
+    unsigned long tenPercent = (iterations/10);
+    if(!tenPercent > 0)
+        tenPercent = 1;
+    unsigned long iterationsReported = 0;
+    static thread_local std::mt19937 generator;
+    generator.seed(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+    std::uniform_int_distribution<int> chanceDistrib(1,rarityD);
+    std::uniform_int_distribution<int> uniqueDistrib(0,numUniques-1);
+    std::vector<std::pair<unsigned long long, unsigned long long>>* simResults = new std::vector<std::pair<unsigned long long, unsigned long long>>();
+    simResults->reserve(iterations);
+    
+    //loop start
+    for(unsigned long long iteration = 0; iteration < iterations; iteration++){
+        if(iteration > 0 && iteration % tenPercent == 0){ // add progress
+            pthread_mutex_lock(args->progressMutex);
+            *(args->globalProgress) += (iteration - iterationsReported);
+            pthread_mutex_unlock(args->progressMutex);
+            iterationsReported = iteration;
+        }
+        //setup sim
+        if(givenItems.size() > 0){
+            for(int i = 0; i < numUniques+1 && i < givenItems.size(); i++){
+                itemsArray[i] = givenItems[i];
+            }
+            itemsArray[numUniques] = 0;
+        }
+        else
+            for(int i = 0; i < numUniques+1; i++){
+                itemsArray[i] = 0;
+        }
+        output.first = 0;
+        output.second = 0;
+        bool containsZero = true;    
+        while (containsZero){
+            roll = chanceDistrib(generator);
+            if (roll <= rarityN){
+                if(weightings.size() > 0){
+                    //translate roll into item based on weighting
+                    for(int i = 0; i < weightings.size(); i++){
+                        if(roll > weightings[i].first)
+                            continue;    
+                        item = weightings[i].second;
+                        break;
+                    }
+                } else
+                    item = uniqueDistrib(generator);
+                itemsArray[item]++;
+                missingUniques = 0;
+                for(int i = 0; i < numUniques; i++){
+                    if(itemsArray[i] == 0)
+                        missingUniques++;
+                }
+                if(numUniques - missingUniques >= count)
+                    containsZero = false;
+            }
+            itemsArray[numUniques]++;
+        }
+        output.first = itemsArray[numUniques];
+        for(int i : itemsArray){
+            output.second = output.second + i;
+        }
+        output.second = output.second - itemsArray[numUniques];
+        simResults->push_back(output);
+    }
+    //report last section Data
+    pthread_mutex_lock(args->progressMutex);
+    *(args->globalProgress) += iterations - iterationsReported;
+    pthread_mutex_unlock(args->progressMutex);
+    pthread_exit((void*) simResults);
+}
+
+void* trackProgress(void* data){
+    ReporterThreadData* args = (ReporterThreadData*) data;
+    unsigned long long lastReported = 0;
+    unsigned long long tenPercent = args->iterations/10;
+    while(lastReported <= args->iterations && lastReported + tenPercent <= args->iterations){
+        std::this_thread::sleep_for(std::chrono::microseconds(10000));
+        std::chrono::high_resolution_clock::time_point tx = std::chrono::high_resolution_clock::now(); 
+        pthread_mutex_lock(args->progressMutex);
+        if(*(args->globalProgress) >= lastReported + tenPercent){
+            printf("Time Elapsed %f: Current Progress %lld/%lld iterations completed.\n", 
+            std::chrono::duration_cast<std::chrono::duration<double>>(tx - *args->startTimePoint).count(),
+            *args->globalProgress,
+            args->iterations);
+            lastReported = *args->globalProgress;
+        }
+        pthread_mutex_unlock(args->progressMutex);
+    }
+    pthread_exit(NULL);
+    return NULL;
+}
+
 int main(int argc, char* argv[]){
+    unsigned long long sims = 0;
     int uniques = 0;
     int rarityN = 0;
     int rarityD = 0;
     int threads = 0;
-    int sims = 0;
     int itemCount = 0;
     bool verboseLogging = false;
     std::string outputFileName = "";
@@ -142,8 +305,10 @@ int main(int argc, char* argv[]){
         printHelpMsg();
         return 0;
     }
+    pthread_mutex_t progressMutex = PTHREAD_MUTEX_INITIALIZER;
+    unsigned long long iterationProgress = 0;
 
-    std::printf("Running %d Simulations of %d slots with %d/%d rarity on %d threads.\n", sims, uniques, rarityN, rarityD, threads);
+    std::printf("Running %lld Simulations of %d slots with %d/%d rarity on %d threads.\n", sims, uniques, rarityN, rarityD, threads);
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
     std::vector<std::pair<unsigned long long, unsigned long long>> results;
     std::vector<ThreadData*> threadArguments;
@@ -171,13 +336,16 @@ int main(int argc, char* argv[]){
         inputFile.close();
     }
     for(int i = 0; i < threads; i++)
-        threadArguments.push_back(new ThreadData(rarityN, rarityD, uniques, (sims/threads),itemCount, weightings, givenItems));
+        threadArguments.push_back(new ThreadData(rarityN, rarityD, uniques, (sims/threads),itemCount,&progressMutex, &iterationProgress, weightings, givenItems));
     for(int i = 0; i < sims % threads; i++)
         threadArguments[i]->iterations++;
     pthread_t threadIds[threads];
+    pthread_t reportThread;
     std::vector<std::pair<unsigned long long, unsigned long long>>* threadResults;
-
-    //create threads
+    //create reporter thread
+    ReporterThreadData* reporterThreadData =  new ReporterThreadData(&progressMutex, &iterationProgress, sims, &t1);
+    pthread_create(&reportThread, NULL, &trackProgress, (void*)reporterThreadData);
+    //create worker threads
     for(int i = 0; i < threads; i++){
         pthread_create(&threadIds[i], NULL, &runIteration, (void*)threadArguments[i]);
         if(verboseLogging)
@@ -199,9 +367,8 @@ int main(int argc, char* argv[]){
         delete ptr;
     }
     //end threaded work
+    pthread_join(reportThread, NULL);
 
-
-    //runIteration((void*) data);
     unsigned long long sumAttempts = 0;
     unsigned long long sumItems = 0;
     unsigned long long highest_attempt = 0;
@@ -273,96 +440,3 @@ int main(int argc, char* argv[]){
      << " items, Lowest attempts " << FmtCmma(lowest_attempt) << ", with " << FmtCmma(lowestAttemptItems) << " items" << std::endl; 
 }
 
-
-
-template<class T>
-std::string FmtCmma(T value)
-{
-    std::stringstream ss;
-    ss.imbue(std::locale(""));
-    ss << value;
-    return ss.str();
-}
-
-
-static bool checkForZero(std::vector<int>* vec){
-    for(int i : *vec){
-        if(i == 0)
-            return true;
-    }
-    return false;
-}
-
-void* runIteration(void* data){
-    //data init
-    ThreadData* args = ((ThreadData*) data);
-    int numUniques = args->uniques;
-    int rarityN = args->rarityN;
-    int rarityD = args->rarityD;
-    int iterations = args->iterations;
-    int count = args->count;
-    if(count == 0)
-        count = numUniques;
-    int missingUniques = 0;
-    std::vector<int> givenItems = args->items;
-    std::vector<std::pair<int,int>> weightings = args->weightings;
-    std::pair<unsigned long long, unsigned long long> output;
-    int item;
-    int roll = 0;
-    int itemsArray[numUniques+1];
-    
-    static thread_local std::mt19937 generator;
-    generator.seed(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-    std::uniform_int_distribution<int> chanceDistrib(1,rarityD);
-    std::uniform_int_distribution<int> uniqueDistrib(0,numUniques-1);
-    std::vector<std::pair<unsigned long long, unsigned long long>>* simResults = new std::vector<std::pair<unsigned long long, unsigned long long>>();
-    simResults->reserve(iterations);
-    //loop start
-    for(int iteration = 0; iteration < iterations; iteration++){
-        //setup sim
-        if(givenItems.size() > 0){
-            for(int i = 0; i < numUniques+1 && i < givenItems.size(); i++){
-                itemsArray[i] = givenItems[i];
-            }
-            itemsArray[numUniques] = 0;
-        }
-        else
-            for(int i = 0; i < numUniques+1; i++){
-                itemsArray[i] = 0;
-        }
-        output.first = 0;
-        output.second = 0;
-        bool containsZero = true;    
-        while (containsZero){
-            roll = chanceDistrib(generator);
-            if (roll <= rarityN){
-                if(weightings.size() > 0){
-                    //translate roll into item based on weighting
-                    for(int i = 0; i < weightings.size(); i++){
-                        if(roll > weightings[i].first)
-                            continue;    
-                        item = weightings[i].second;
-                        break;
-                    }
-                } else
-                    item = uniqueDistrib(generator);
-                itemsArray[item]++;
-                missingUniques = 0;
-                for(int i = 0; i < numUniques; i++){
-                    if(itemsArray[i] == 0)
-                        missingUniques++;
-                }
-                if(numUniques - missingUniques >= count)
-                    containsZero = false;
-            }
-            itemsArray[numUniques]++;
-        }
-        output.first = itemsArray[numUniques];
-        for(int i : itemsArray){
-            output.second = output.second + i;
-        }
-        output.second = output.second - itemsArray[numUniques];
-        simResults->push_back(output);
-    }
-    pthread_exit((void*) simResults);
-}
