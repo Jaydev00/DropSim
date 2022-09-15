@@ -370,7 +370,8 @@ int main(int argc, char* argv[]){
         delete ptr;
     }
     //end threaded work
-   
+    pthread_join(reportThread, NULL);
+    delete(reporterThreadData);
 
     unsigned long long sumAttempts = 0;
     unsigned long long sumItems = 0;
@@ -382,8 +383,7 @@ int main(int argc, char* argv[]){
     std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
     std::cout << std::endl << std::endl << std::endl << "============================================================================================" << std::endl;
     std::cout << "Simulation took " << time_span.count() << " Seconds." << std::endl;
-    pthread_join(reportThread, NULL);
-    delete(reporterThreadData);
+    
 
     if(outputFileName != ""){
         std::ofstream outFile;
