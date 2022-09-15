@@ -348,8 +348,8 @@ void* runIteration(void* data){
                     item = uniqueDistrib(generator);
                 itemsArray[item]++;
                 missingUniques = 0;
-                for(int i : itemsArray){
-                    if(i == 0)
+                for(int i = 0; i < numUniques; i++){
+                    if(itemsArray[i] == 0)
                         missingUniques++;
                 }
                 if(numUniques - missingUniques >= count)
