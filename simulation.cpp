@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <locale>
 #include <string.h>
+#include <cstring>
 struct ThreadData
 {
     public:
@@ -131,7 +132,7 @@ bool parseArgs(int argc, char* argv[], int &uniques, int &rarityN, int &rarityD,
             }
         } else if(!strcmp(argv[i], "-v")){
             verboseLogging = true;
-        } 
+        }
     }
     if (sims == 0 ||
         threads == 0 ||
@@ -193,7 +194,7 @@ void* runIteration(void* data){
     int roll = 0;
     int itemsArray[numUniques+1];
     unsigned long long progress;
-    unsigned long tenPercent = (iterations/10);
+    unsigned long tenPercent = (iterations/100);
     if(!tenPercent > 0)
         tenPercent = 1;
     unsigned long iterationsReported = 0;
@@ -267,16 +268,16 @@ void* runIteration(void* data){
 void* trackProgress(void* data){
     ReporterThreadData* args = (ReporterThreadData*) data;
     unsigned long long lastReported = 0;
-    unsigned long long tenPercent = args->iterations/10;
+    unsigned long long tenPercent = args->iterations/100;
     while(lastReported <= args->iterations && lastReported + tenPercent <= args->iterations){
-        std::this_thread::sleep_for(std::chrono::microseconds(10000));
+        std::this_thread::sleep_for(std::chrono::microseconds(50000));
         std::chrono::high_resolution_clock::time_point tx = std::chrono::high_resolution_clock::now(); 
         pthread_mutex_lock(args->progressMutex);
         if(*(args->globalProgress) >= lastReported + tenPercent){
-            printf("Time Elapsed %f: Current Progress %lld/%lld iterations completed.\n", 
-            std::chrono::duration_cast<std::chrono::duration<double>>(tx - *args->startTimePoint).count(),
-            *args->globalProgress,
-            args->iterations);
+            std::cout << std::fixed << std::setprecision(2) << 
+            "Time Elapsed " << std::chrono::duration_cast<std::chrono::duration<double>>(tx - *args->startTimePoint).count() <<
+            ": Current Progress " << (*args->globalProgress * 100) / args->iterations << "% (" << FmtCmma(*args->globalProgress) << 
+            "/" <<  FmtCmma(args->iterations) << ")"<< std::endl;
             lastReported = *args->globalProgress;
         }
         pthread_mutex_unlock(args->progressMutex);
@@ -292,6 +293,7 @@ int main(int argc, char* argv[]){
     int rarityD = 0;
     int threads = 0;
     int itemCount = 0;
+    int progressStep = 10;
     bool verboseLogging = false;
     std::string outputFileName = "";
     std::string uniquesFileName = "";
@@ -308,7 +310,8 @@ int main(int argc, char* argv[]){
     pthread_mutex_t progressMutex = PTHREAD_MUTEX_INITIALIZER;
     unsigned long long iterationProgress = 0;
 
-    std::printf("Running %lld Simulations of %d slots with %d/%d rarity on %d threads.\n", sims, uniques, rarityN, rarityD, threads);
+    //std::printf("Running %lld Simulations of %d slots with %d/%d rarity on %d threads.\n", FmtCmma(sims), uniques, FmtCmma(rarityN), FmtCmma(rarityN), threads);
+    std::cout << "Running " << FmtCmma(sims) << " Simulations with " << uniques << " slots with" << FmtCmma(rarityN) << "/" <<FmtCmma(rarityN)  << "rarity on " << threads << " threads.\n" << std::endl;
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
     std::vector<std::pair<unsigned long long, unsigned long long>> results;
     std::vector<ThreadData*> threadArguments;
@@ -377,8 +380,8 @@ int main(int argc, char* argv[]){
     unsigned long long lowestAttemptItems = 0;
     std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    std::printf("\n\n\n============================================================================================\n");
-    printf("Simulation took %f Seconds.\n", time_span.count());
+    std::cout << std::endl << std::endl << std::endl << "============================================================================================" << std::endl;
+    std::cout << "Simulation took " << time_span.count() << " Seconds." << std::endl;
 
     if(outputFileName != ""){
         std::ofstream outFile;
@@ -416,7 +419,7 @@ int main(int argc, char* argv[]){
     if(outputFileName != ""){
         std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> time_span2 = std::chrono::duration_cast<std::chrono::duration<double>>(t3 - t2);
-        printf("finished Writing to file in %f Seconds.\n", time_span2.count());
+        std::cout << "Finished Writing to file in " << time_span2.count() << " Seconds." << std::endl;
     }
 
     //parse Results
