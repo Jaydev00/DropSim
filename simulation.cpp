@@ -10,29 +10,82 @@
 #include <locale>
 #include <string.h>
 #include <cstring>
+#include <unistd.h>
+
+struct SimArgs{
+    unsigned long long iterations = 0;
+    int threads = 0;
+    int rarityN = 0;
+    int rarityD = 0;
+    int uniques = 0;
+    int count = 0;
+    int numRollsPerAttempt = 1;
+    bool verboseLogging = false;
+    std::string resultsFileName = "";
+    std::vector<std::pair<int,int>> weightings;
+    std::vector<int> obtainedItems;
+    std::vector<std::pair<int,int>> tertiaryRolls;
+};
+
 struct ThreadData
 {
+    //**DONE
+    //handle rolls, basic case 1 roll for 1 item no restrictions 
+    //##BasicUniques, BasicRarityN/D, iterations, count
+    //**IN PROGRESS 
+    //case multiple rolls for all items   (clue casket)
+    //##numRollsPerAttempt
+
+    //case 1+ basic rolls + tertiary roll (zulrah)
+    //##tertiaryDrops teriarityRate -- multiple rates, one for each drop
+    //case multiple rolls with exclusions (barrows)
+    //#specific case for barrows
     public:
-        ThreadData(int nrarityN, int nrarityD, int nuniques, unsigned long long niterations, int ncount, pthread_mutex_t* progressTex, unsigned long long* nglobalProgress, std::vector<std::pair<int,int>> nWeightings, std::vector<int> ngivenItems){
+        ThreadData(int nrarityN, int nrarityD, 
+        int nuniques, unsigned long long niterations, 
+        int ncount, pthread_mutex_t* progressTex, 
+        unsigned long long* nglobalProgress, 
+        int nNumRollsPerAttempt,
+        std::vector<std::pair<int,int>> nWeightings, std::vector<int> ngivenItems, std::vector<std::pair<int,int>> ntertiaryRolls){
             rarityN = nrarityN;
             rarityD = nrarityD;
             uniques = nuniques;
             iterations = niterations;
             count = ncount;
+            numRollsPerAttempt = nNumRollsPerAttempt;
             progressMutex = progressTex;
             globalProgress = nglobalProgress;
             for(int i = 0; i < nWeightings.size(); i++)
                 weightings.push_back(nWeightings[i]);
             for(int i : ngivenItems)
                 items.push_back(i);
+            
+        }
+        ThreadData(SimArgs args, pthread_mutex_t* nprogressMutex, unsigned long long* nglobalProgress){
+            rarityN = args.rarityN;
+            rarityD = args.rarityD;
+            uniques = args.uniques;
+            iterations = args.iterations/args.threads;
+            count = args.count;
+            numRollsPerAttempt = args.numRollsPerAttempt;
+            progressMutex = nprogressMutex;
+            globalProgress = nglobalProgress;
+            for(int i = 0; i < args.weightings.size(); i++)
+                weightings.push_back(args.weightings[i]);
+            for(int i = 0; i < args.tertiaryRolls.size(); i++)
+                tertiaryRolls.push_back(args.tertiaryRolls[i]);
+            for(int i : args.obtainedItems)
+                items.push_back(i);
         }
         pthread_mutex_t* progressMutex;
         std::vector<std::pair<int,int>> weightings;
         std::vector<int> items;
+        std::vector<std::pair<int,int>> tertiaryRolls;
         int rarityN;
         int rarityD;
         int uniques;
         int count;
+        int numRollsPerAttempt;
         unsigned long long iterations;
         unsigned long long* globalProgress;
 };
@@ -52,104 +105,157 @@ struct ReporterThreadData {
 
 };
 
-void printHelpMsg(){
-    std::cout << "Flags " << std::endl;
+
+
+void printHelpMsg(char * exeName){
+    std::cout << "Usage " << exeName << std::endl;
     std::cout << "-h \t\t\t\t: show help" << std::endl;
     std::cout << "-s <simulations>\t\t: (Required) number of simulations to run." << std::endl;
     std::cout << "-t <threads>\t\t\t: (Required) number of threads to run the simulation on." << std::endl;
     std::cout << "-u <uniques>\t\t\t: (Required) number of unique items to collect." << std::endl;
-    std::cout << "-r <rarity N> <rarity D>\t: (Required) Rarity of items n/d" << std::endl;
+    std::cout << "-r <rarity N>/<rarity D>\t: (Required) Rarity of items n/d" << std::endl;
     std::cout << "-f <fileName>\t\t\t: name of file to output simulation results." << std::endl;
     std::cout << "-w <fileName>\t\t\t: name of the file with unique weighting for uniques with different rates" << std::endl;
     std::cout << "-c <num items>\t\t\t: only simulate until a given number of items are obtained instead of all." << std::endl;
-    std::cout << "-g <fileName>\t\t\t: File with already obtained items \n\t\t\t\t  Include all items | in the same order as weighting if applicable" << std::endl;
+    std::cout << "-g <fileName>\t\t\t: File with already obtained items include all items | in the same order as weighting if applicable" << std::endl;
     std::cout << "-v \t\t\t\t: Verbose output" << std::endl;
 
 }
 
-bool parseArgs(int argc, char* argv[], int &uniques, int &rarityN, int &rarityD, int &threads, unsigned long long &sims, int& itemCount, std::string& fileName, std::string& uniqueWeighting, std::string& obtainedFileName, bool& verboseLogging){
-    bool result = true;
-    for(int i = 1; i < argc; i++){
-        if(!strcmp(argv[i], "-h")){
-            printHelpMsg();
-            return 0;
-        } else if(!strcmp(argv[i], "-s")){
-            if(argc >= i+1){
-                sims = atoi(argv[i+1]);
-            } else {
-                std::cout << "-s specified but no argument given.";
-                result = false;
-            }
-        } else if(!strcmp(argv[i], "-t")){
-            if(argc >= i+1){
-                threads = atoi(argv[i+1]);
-            } else {
-                std::cout << "-t specified but no argument given.";
-                result = false;
-            }
-        } else if(!strcmp(argv[i], "-f")){
-            if(argc >= i+1){
-                fileName = argv[i+1];
-            } else {
-                std::cout << "-f specified but no argument given.";
-                result = false;
-            }
-        } else if(!strcmp(argv[i], "-u")){
-            if(argc >= i+1){
-                uniques = atoi(argv[i+1]);
-            } else {
-                std::cout << "-u specified but no argument given.";
-                result = false;
-            }
-        } else if(!strcmp(argv[i], "-r")){
-            if(argc >= i+2){
-                rarityN = atoi(argv[i+1]);
-                rarityD = atoi(argv[i+2]);
-            } else {
-                std::cout << "-r specified but no argument given.";
-                result = false;
-            }
-        } else if(!strcmp(argv[i], "-w")){
-            if(argc >= i+1){
-                uniqueWeighting = argv[i+1];
-            } else {
-                std::cout << "-w specified but no argument given.";
-                result = false;
-            }
-        } else if(!strcmp(argv[i], "-c")){
-            if(argc >= i+1){
-                itemCount = atoi(argv[i+1]);
-            } else {
-                std::cout << "-c specified but no argument given.";
-                result = false;
-            }
-        } else if(!strcmp(argv[i], "-g")){
-            if(argc >= i+1){
-                obtainedFileName = argv[i+1];
-            } else {
-                std::cout << "-g specified but no argument given.";
-                result = false;
-            }
-        } else if(!strcmp(argv[i], "-v")){
-            verboseLogging = true;
+//get opts
+bool parseArgs(int argc, char* argv[], SimArgs &argsStruct){
+    int opt;
+    std::string temp;
+    std::ifstream infile;
+    while((opt = getopt(argc, argv, "hvs:t:u:r:f:w:c:g:3:p:")) != -1){
+        switch(opt) {
+            case 'h':
+                printHelpMsg(argv[0]);
+                return false;
+            case 's':
+                if(optarg == NULL || strlen(optarg) <= 0) {
+                    std::cout << "Missing Simulations input" << std::endl;
+                    printHelpMsg(argv[0]);
+                    return false;
+                }
+                argsStruct.iterations = std::stoi(optarg);
+                break;
+
+            case 't':
+                if(optarg == NULL || strlen(optarg) <= 0) {
+                    std::cout << "Missing Thread input" << std::endl;
+                    printHelpMsg(argv[0]);
+                    return false;
+                }
+                argsStruct.threads = std::stoi(optarg);
+                break;
+
+            case 'u':
+                if(optarg == NULL || strlen(optarg) <= 0) {
+                    std::cout << "Missing Uniques input" << std::endl;
+                    printHelpMsg(argv[0]);
+                    return false;
+                }
+                argsStruct.uniques = std::stoi(optarg);
+                break;
+
+            case 'r':
+                if(optarg == NULL || strlen(optarg) <= 0) {
+                    std::cout << "Missing basic rarity input" << std::endl;
+                    printHelpMsg(argv[0]);
+                    return false;
+                }
+                temp = optarg;
+                argsStruct.rarityN = std::stoi(temp.substr(0,temp.find("/")));
+                argsStruct.rarityD = std::stoi(temp.substr(temp.find("/") + 1, temp.length()));
+                break;
+            case 'f':
+                if(optarg == NULL || strlen(optarg) <= 0) {
+                    std::cout << "Missing file output input" << std::endl;
+                    printHelpMsg(argv[0]);
+                    return false;
+                }
+                argsStruct.resultsFileName = optarg;
+                break;
+            case 'w':
+                if(optarg == NULL || strlen(optarg) <= 0) {
+                    std::cout << "Missing Simulations input" << std::endl;
+                    printHelpMsg(argv[0]);
+                    return false;
+                }
+                infile.open(optarg);
+                    for(std::string temp; std::getline(infile, temp);){
+    
+                        argsStruct.weightings.push_back(std::pair<int,int>(
+                            stoi(temp.substr(0,temp.find(","))),
+                            stoi(temp.substr(temp.find(",") + 1, temp.length()))
+                            ));
+                    }
+                infile.close();
+                break;
+            case 'c':
+                if(optarg == NULL || strlen(optarg) <= 0) {
+                    std::cout << "Missing minimum unique count input" << std::endl;
+                    printHelpMsg(argv[0]);
+                    return false;
+                }
+                argsStruct.count = std::stoi(optarg);
+                break;   
+            case 'g':
+                if(optarg == NULL || strlen(optarg) <= 0) {
+                    std::cout << "Missing Simulations input" << std::endl;
+                    printHelpMsg(argv[0]);
+                    return false;
+                }
+                infile.open(optarg);
+                       for(std::string temp; std::getline(infile, temp);){
+                            argsStruct.obtainedItems.push_back(stoi(temp));
+                        }
+                    
+                infile.close();
+                break; 
+            case '3':
+                if(optarg == NULL || strlen(optarg) <= 0) {
+                    std::cout << "Missing tertiary input" << std::endl;
+                    printHelpMsg(argv[0]);
+                    return false;
+                }
+                temp = optarg;
+                argsStruct.tertiaryRolls.push_back(std::pair<int,int>(
+                    stoi(temp.substr(0,temp.find("/"))), 
+                    stoi(temp.substr(temp.find("/") + 1, temp.length()))));
+                break;
+            case 'p':
+                if(optarg == NULL || strlen(optarg) <= 0) {
+                    std::cout << "Missing Rolls per attempt input" << std::endl;
+                    printHelpMsg(argv[0]);
+                    return false;
+                }
+                argsStruct.numRollsPerAttempt = std::stoi(optarg);
+                break;     
+            case 'v':
+                argsStruct.verboseLogging = true;
+                break;
+            
         }
     }
-    if (sims == 0 ||
-        threads == 0 ||
-        uniques == 0 ||
-        rarityN == 0 ||
-        rarityD == 0) {
+    if (argsStruct.iterations == 0 ||
+        argsStruct.threads == 0 ||
+        argsStruct.uniques == 0 ||
+        argsStruct.rarityN == 0 ||
+        argsStruct.rarityD == 0) {
             std::cout << "Missing required input" << std::endl;
-            std::cout << "have " 
-            << "sims " << sims 
-            << " threads " << threads
-            << " uniques " << uniques
-            << " rairtyN " << rarityN
-            << " rarityD " << rarityD 
+            std::cout << "have" 
+            << " sims " << argsStruct.iterations 
+            << " threads " << argsStruct.threads
+            << " uniques " << argsStruct.uniques
+            << " rairtyN " << argsStruct.rarityN
+            << " rarityD " << argsStruct.rarityD 
             << std::endl;
-            result = false;
+            printHelpMsg(argv[0]);
+            return false;
         }
-    return result;
+    return true;
 }
 
 
@@ -174,40 +280,46 @@ static bool checkForZero(std::vector<int>* vec){
 
 void* runIteration(void* data){
     
-    
     //parse arg data
     ThreadData* args = ((ThreadData*) data);
-    int numUniques = args->uniques;
-    int rarityN = args->rarityN;
-    int rarityD = args->rarityD;
-    unsigned long long iterations = args->iterations;
-    unsigned long long count = args->count;
-    if(count == 0)
-        count = numUniques;
+    int count = 0;
+    count = (args->count == 0 ? args->uniques : args->count);
+    count += args->tertiaryRolls.size();
     std::vector<int> givenItems = args->items;
     std::vector<std::pair<int,int>> weightings = args->weightings;
 
     //init local variables
     std::pair<unsigned long long, unsigned long long> output;
     int missingUniques = 0;
-    int item;
+    int item = 0;
     int roll = 0;
-    int itemsArray[numUniques+1];
-    unsigned long long progress;
-    unsigned long tenPercent = (iterations/100);
-    if(!tenPercent > 0)
-        tenPercent = 1;
+    int itemsArray[args->uniques + args->tertiaryRolls.size()];
+    unsigned long long attempts = 0;
+    unsigned long long progress = 0;
+    unsigned long long reportIncrement = (args->iterations/100);
+    if(!reportIncrement > 0)
+        reportIncrement = 1;
     unsigned long iterationsReported = 0;
     static thread_local std::mt19937 generator;
     generator.seed(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-    std::uniform_int_distribution<int> chanceDistrib(1,rarityD);
-    std::uniform_int_distribution<int> uniqueDistrib(0,numUniques-1);
+    std::uniform_int_distribution<int> chanceDistrib(1,args->rarityD);
+    std::uniform_int_distribution<int> uniqueDistrib(0,args->uniques-1);
+    std::vector<std::uniform_int_distribution<int>> tertiaryDistrubtions;
     std::vector<std::pair<unsigned long long, unsigned long long>>* simResults = new std::vector<std::pair<unsigned long long, unsigned long long>>();
-    simResults->reserve(iterations);
+    simResults->reserve(args->iterations);
     
+    for(std::pair<int,int> roll : args->tertiaryRolls){
+        tertiaryDistrubtions.push_back(std::uniform_int_distribution<int>(roll.first,roll.second));
+    }
+
     //loop start
-    for(unsigned long long iteration = 0; iteration < iterations; iteration++){
-        if(iteration > 0 && iteration % tenPercent == 0){ // add progress
+
+    //handle rolls, basic case 1 roll 1 item no restrictions
+    //case multiple rolls for all items   (clue casket)
+    //case 1+ basic rolls + tertiary roll (zulrah)
+    //case multiple rolls with exclusions (barrows)
+    for(unsigned long long iteration = 0; iteration < args->iterations; iteration++){
+        if(iteration > 0 && iteration % reportIncrement == 0){ // add progress
             pthread_mutex_lock(args->progressMutex);
             *(args->globalProgress) += (iteration - iterationsReported);
             pthread_mutex_unlock(args->progressMutex);
@@ -215,52 +327,73 @@ void* runIteration(void* data){
         }
         //setup sim
         if(givenItems.size() > 0){
-            for(int i = 0; i < numUniques+1 && i < givenItems.size(); i++){
+            for(int i = 0; i < args->uniques+args->tertiaryRolls.size() && i < givenItems.size(); i++){
                 itemsArray[i] = givenItems[i];
             }
-            itemsArray[numUniques] = 0;
         }
         else
-            for(int i = 0; i < numUniques+1; i++){
+            for(int i = 0; i < args->uniques + args->tertiaryRolls.size(); i++){
                 itemsArray[i] = 0;
         }
         output.first = 0;
         output.second = 0;
+        attempts = 0;
         bool containsZero = true;    
         while (containsZero){
-            roll = chanceDistrib(generator);
-            if (roll <= rarityN){
-                if(weightings.size() > 0){
-                    //translate roll into item based on weighting
-                    for(int i = 0; i < weightings.size(); i++){
-                        if(roll > weightings[i].first)
-                            continue;    
-                        item = weightings[i].second;
-                        break;
+            for(int i = 0; i < args->numRollsPerAttempt; i++){
+                item = 0;
+                roll = chanceDistrib(generator);
+                if (roll <= args->rarityN){
+                    if(weightings.size() > 0){
+                        //translate roll into item based on weighting
+                        for(int i = 0; i < weightings.size(); i++){
+                            if(roll > weightings[i].first)
+                                continue;    
+                            item = weightings[i].second;
+                            break;
+                        }
+                    } else
+                        item = uniqueDistrib(generator);
+                    itemsArray[item]++;
+                    missingUniques = 0;
+                    if(tertiaryDistrubtions.size() <= 0){
+                        for(int i = 0; i < args->uniques; i++){
+                            if(itemsArray[i] == 0)
+                                missingUniques++;
+                        }
+                        if(args->uniques - missingUniques >= count)
+                            containsZero = false;
                     }
-                } else
-                    item = uniqueDistrib(generator);
-                itemsArray[item]++;
+                }
+            }
+            //tertiary rolls
+            for(int i = 0; i < tertiaryDistrubtions.size(); i++){
+                int temp = tertiaryDistrubtions[i](generator);
+                if(temp == 1)
+                    itemsArray[i + args->uniques]++;
+            }
+
+            if(tertiaryDistrubtions.size() > 0){
                 missingUniques = 0;
-                for(int i = 0; i < numUniques; i++){
+                for(int i = 0; i < args->uniques + args->tertiaryRolls.size(); i++){
                     if(itemsArray[i] == 0)
                         missingUniques++;
                 }
-                if(numUniques - missingUniques >= count)
+                if(args->uniques + args->tertiaryRolls.size() - missingUniques >= count)
                     containsZero = false;
             }
-            itemsArray[numUniques]++;
+            attempts++;
         }
-        output.first = itemsArray[numUniques];
+
+        output.first = attempts;
         for(int i : itemsArray){
             output.second = output.second + i;
         }
-        output.second = output.second - itemsArray[numUniques];
         simResults->push_back(output);
     }
     //report last section Data
     pthread_mutex_lock(args->progressMutex);
-    *(args->globalProgress) += iterations - iterationsReported;
+    *(args->globalProgress) += args->iterations - iterationsReported;
     pthread_mutex_unlock(args->progressMutex);
     pthread_exit((void*) simResults);
 }
@@ -287,31 +420,35 @@ void* trackProgress(void* data){
 }
 
 int main(int argc, char* argv[]){
-    unsigned long long sims = 0;
-    int uniques = 0;
-    int rarityN = 0;
-    int rarityD = 0;
-    int threads = 0;
-    int itemCount = 0;
+    SimArgs args;
     int progressStep = 10;
     bool verboseLogging = false;
     std::string outputFileName = "";
     std::string uniquesFileName = "";
     std::string obtainedFileName = "";
-    if(!parseArgs(argc, argv, uniques, rarityN, rarityD, threads, sims, itemCount, outputFileName, uniquesFileName, obtainedFileName, verboseLogging)){
-        printHelpMsg();
+    if(!parseArgs(argc, argv, args)){
         return -1;
     }
     //argument parsing
     if(argc <= 1) {
-        printHelpMsg();
         return 0;
     }
     pthread_mutex_t progressMutex = PTHREAD_MUTEX_INITIALIZER;
     unsigned long long iterationProgress = 0;
 
-    //std::printf("Running %lld Simulations of %d slots with %d/%d rarity on %d threads.\n", FmtCmma(sims), uniques, FmtCmma(rarityN), FmtCmma(rarityN), threads);
-    std::cout << "Running " << FmtCmma(sims) << " Simulations with " << uniques << " slots with " << FmtCmma(rarityN) << "/" <<FmtCmma(rarityD)  << " rarity on " << threads << " threads.\n" << std::endl;
+    std::cout << "Running " << FmtCmma(args.iterations) << " Simulations with " << args.uniques << " slots with " << FmtCmma(args.rarityN) << "/" <<FmtCmma(args.rarityD)  << " rarity on " << args.threads << " threads." << std::endl;
+    if(args.count > 0)
+        std::cout << "Stopping after " << args.count << " Items Obtained." << std::endl;
+    if(args.numRollsPerAttempt > 1)
+        std::cout << "Rolling for Loot " << args.numRollsPerAttempt << " Times per Attempt." << std::endl;
+    if(args.weightings.size()> 0)
+        std::cout << "Using Weight File" << std::endl;
+    if(args.obtainedItems.size() > 0)
+        std::cout << "Using Obtained Items File" << std::endl;
+    if(args.tertiaryRolls.size() > 0)
+        std::cout << "Rolling " << args.tertiaryRolls.size() << " Tertiary Roll(s) per attempt" << std::endl;
+    std::cout << std::endl;
+    
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
     std::vector<std::pair<unsigned long long, unsigned long long>> results;
     std::vector<ThreadData*> threadArguments;
@@ -319,42 +456,24 @@ int main(int argc, char* argv[]){
     std::vector<int> givenItems;
     std::ifstream inputFile;
 
-    if(uniquesFileName != ""){
-        
-        inputFile.open(uniquesFileName);
-        for(std::string temp; std::getline(inputFile, temp);){
-    
-            weightings.push_back(std::pair<int,int>(
-                stoi(temp.substr(0,temp.find(","))),
-                stoi(temp.substr(temp.find(",") + 1, temp.length()))
-                ));
-        }
-        inputFile.close();
-    }
-    if(obtainedFileName != "") {
-        inputFile.open(obtainedFileName);
-        for(std::string temp; std::getline(inputFile, temp);){
-            givenItems.push_back(stoi(temp));
-        }
-        inputFile.close();
-    }
-    for(int i = 0; i < threads; i++)
-        threadArguments.push_back(new ThreadData(rarityN, rarityD, uniques, (sims/threads),itemCount,&progressMutex, &iterationProgress, weightings, givenItems));
-    for(int i = 0; i < sims % threads; i++)
+    for(int i = 0; i < args.threads; i++)
+        threadArguments.push_back(new ThreadData(args, &progressMutex, &iterationProgress));
+    for(int i = 0; i < args.iterations % args.threads; i++)
         threadArguments[i]->iterations++;
-    pthread_t threadIds[threads];
+
+    pthread_t threadIds[args.threads];
     pthread_t reportThread;
     std::vector<std::pair<unsigned long long, unsigned long long>>* threadResults;
     //create reporter thread
-    ReporterThreadData* reporterThreadData =  new ReporterThreadData(&progressMutex, &iterationProgress, sims, &t1);
+    ReporterThreadData* reporterThreadData =  new ReporterThreadData(&progressMutex, &iterationProgress, args.iterations, &t1);
     pthread_create(&reportThread, NULL, &trackProgress, (void*)reporterThreadData);
     //create worker threads
-    for(int i = 0; i < threads; i++){
+    for(int i = 0; i < args.threads; i++){
         pthread_create(&threadIds[i], NULL, &runIteration, (void*)threadArguments[i]);
         if(verboseLogging)
             std::cout << "Creating thread " << i << " " << threadIds[i] << std::endl;
     }
-    for(int i = 0; i < threads; i++){
+    for(int i = 0; i < args.threads; i++){
         if(verboseLogging)
             std::cout << "waiting for thread " << i << " " << threadIds[i] << std::endl;
         pthread_join(threadIds[i],(void**) &threadResults);
