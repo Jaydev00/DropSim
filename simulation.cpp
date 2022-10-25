@@ -12,7 +12,15 @@
 #include <cstring>
 #include <unistd.h>
 
+enum Endcondition {
+    Uniques,
+    Weight1to1,
+    WeightTotal,
+    Attempts 
+};
+
 struct SimArgs{
+    Endcondition endCondition = Uniques;
     unsigned long long iterations = 0;
     int threads = 0;
     int rarityN = 0;
@@ -32,36 +40,17 @@ struct ThreadData
     //**DONE
     //handle rolls, basic case 1 roll for 1 item no restrictions 
     //##BasicUniques, BasicRarityN/D, iterations, count
-    //**IN PROGRESS 
     //case multiple rolls for all items   (clue casket)
     //##numRollsPerAttempt
 
+    //**INPROGRESS
     //case 1+ basic rolls + tertiary roll (zulrah)
     //##tertiaryDrops teriarityRate -- multiple rates, one for each drop
     //case multiple rolls with exclusions (barrows)
     //#specific case for barrows
     public:
-        ThreadData(int nrarityN, int nrarityD, 
-        int nuniques, unsigned long long niterations, 
-        int ncount, pthread_mutex_t* progressTex, 
-        unsigned long long* nglobalProgress, 
-        int nNumRollsPerAttempt,
-        std::vector<std::pair<int,int>> nWeightings, std::vector<int> ngivenItems, std::vector<std::pair<int,int>> ntertiaryRolls){
-            rarityN = nrarityN;
-            rarityD = nrarityD;
-            uniques = nuniques;
-            iterations = niterations;
-            count = ncount;
-            numRollsPerAttempt = nNumRollsPerAttempt;
-            progressMutex = progressTex;
-            globalProgress = nglobalProgress;
-            for(int i = 0; i < nWeightings.size(); i++)
-                weightings.push_back(nWeightings[i]);
-            for(int i : ngivenItems)
-                items.push_back(i);
-            
-        }
         ThreadData(SimArgs args, pthread_mutex_t* nprogressMutex, unsigned long long* nglobalProgress){
+            endCondition = args.endCondition;
             rarityN = args.rarityN;
             rarityD = args.rarityD;
             uniques = args.uniques;
@@ -81,6 +70,7 @@ struct ThreadData
         std::vector<std::pair<int,int>> weightings;
         std::vector<int> items;
         std::vector<std::pair<int,int>> tertiaryRolls;
+        Endcondition endCondition;
         int rarityN;
         int rarityD;
         int uniques;
@@ -105,8 +95,6 @@ struct ReporterThreadData {
 
 };
 
-
-
 void printHelpMsg(char * exeName){
     std::cout << "Usage " << exeName << std::endl;
     std::cout << "-h \t\t\t\t: show help" << std::endl;
@@ -118,8 +106,14 @@ void printHelpMsg(char * exeName){
     std::cout << "-w <fileName>\t\t\t: name of the file with unique weighting for uniques with different rates" << std::endl;
     std::cout << "-c <num items>\t\t\t: only simulate until a given number of items are obtained instead of all." << std::endl;
     std::cout << "-g <fileName>\t\t\t: File with already obtained items include all items | in the same order as weighting if applicable" << std::endl;
+    std::cout << "-l <[1-3]>\t\t\t: set the end condition of the iteration to (1) 1 to 1 weight (2) total weight (3) given attempts. " << std::endl;
     std::cout << "-v \t\t\t\t: Verbose output" << std::endl;
 
+}
+
+void printHelpMsg(char * exeName, std::string extraMsg){
+    std::cout << extraMsg << std::endl;
+    printHelpMsg(exeName);
 }
 
 //get opts
@@ -134,8 +128,7 @@ bool parseArgs(int argc, char* argv[], SimArgs &argsStruct){
                 return false;
             case 's':
                 if(optarg == NULL || strlen(optarg) <= 0) {
-                    std::cout << "Missing Simulations input" << std::endl;
-                    printHelpMsg(argv[0]);
+                    printHelpMsg(argv[0], "Missing Simulations input");
                     return false;
                 }
                 argsStruct.iterations = std::stoi(optarg);
@@ -143,8 +136,7 @@ bool parseArgs(int argc, char* argv[], SimArgs &argsStruct){
 
             case 't':
                 if(optarg == NULL || strlen(optarg) <= 0) {
-                    std::cout << "Missing Thread input" << std::endl;
-                    printHelpMsg(argv[0]);
+                    printHelpMsg(argv[0], "Missing Thread input");
                     return false;
                 }
                 argsStruct.threads = std::stoi(optarg);
@@ -152,8 +144,7 @@ bool parseArgs(int argc, char* argv[], SimArgs &argsStruct){
 
             case 'u':
                 if(optarg == NULL || strlen(optarg) <= 0) {
-                    std::cout << "Missing Uniques input" << std::endl;
-                    printHelpMsg(argv[0]);
+                    printHelpMsg(argv[0], "Missing Uniques input");
                     return false;
                 }
                 argsStruct.uniques = std::stoi(optarg);
@@ -161,8 +152,7 @@ bool parseArgs(int argc, char* argv[], SimArgs &argsStruct){
 
             case 'r':
                 if(optarg == NULL || strlen(optarg) <= 0) {
-                    std::cout << "Missing basic rarity input" << std::endl;
-                    printHelpMsg(argv[0]);
+                    printHelpMsg(argv[0], "Missing basic rarity input");
                     return false;
                 }
                 temp = optarg;
@@ -171,16 +161,14 @@ bool parseArgs(int argc, char* argv[], SimArgs &argsStruct){
                 break;
             case 'f':
                 if(optarg == NULL || strlen(optarg) <= 0) {
-                    std::cout << "Missing file output input" << std::endl;
-                    printHelpMsg(argv[0]);
+                    printHelpMsg(argv[0], "Missing file output input");
                     return false;
                 }
                 argsStruct.resultsFileName = optarg;
                 break;
             case 'w':
                 if(optarg == NULL || strlen(optarg) <= 0) {
-                    std::cout << "Missing Simulations input" << std::endl;
-                    printHelpMsg(argv[0]);
+                    printHelpMsg(argv[0], "Missing Weight File input");
                     return false;
                 }
                 infile.open(optarg);
@@ -195,16 +183,14 @@ bool parseArgs(int argc, char* argv[], SimArgs &argsStruct){
                 break;
             case 'c':
                 if(optarg == NULL || strlen(optarg) <= 0) {
-                    std::cout << "Missing minimum unique count input" << std::endl;
-                    printHelpMsg(argv[0]);
+                    printHelpMsg(argv[0], "Missing end condition input");
                     return false;
                 }
                 argsStruct.count = std::stoi(optarg);
                 break;   
             case 'g':
                 if(optarg == NULL || strlen(optarg) <= 0) {
-                    std::cout << "Missing Simulations input" << std::endl;
-                    printHelpMsg(argv[0]);
+                    printHelpMsg(argv[0], "Missing Simulations input");
                     return false;
                 }
                 infile.open(optarg);
@@ -216,8 +202,7 @@ bool parseArgs(int argc, char* argv[], SimArgs &argsStruct){
                 break; 
             case '3':
                 if(optarg == NULL || strlen(optarg) <= 0) {
-                    std::cout << "Missing tertiary input" << std::endl;
-                    printHelpMsg(argv[0]);
+                    printHelpMsg(argv[0], "Missing tertiary input");
                     return false;
                 }
                 temp = optarg;
@@ -227,8 +212,7 @@ bool parseArgs(int argc, char* argv[], SimArgs &argsStruct){
                 break;
             case 'p':
                 if(optarg == NULL || strlen(optarg) <= 0) {
-                    std::cout << "Missing Rolls per attempt input" << std::endl;
-                    printHelpMsg(argv[0]);
+                    printHelpMsg(argv[0], "Missing Rolls per attempt input");
                     return false;
                 }
                 argsStruct.numRollsPerAttempt = std::stoi(optarg);
@@ -236,6 +220,30 @@ bool parseArgs(int argc, char* argv[], SimArgs &argsStruct){
             case 'v':
                 argsStruct.verboseLogging = true;
                 break;
+            case 'l': //use end condition 1 to 1 weighting
+                if(optarg == NULL || strlen(optarg) <= 0) {
+                    printHelpMsg(argv[0], "Missing end condition input");
+                    return false;
+                }
+                if(argsStruct.endCondition != Uniques)
+                    printHelpMsg(argv[0], "Multiple conflicting end condtitions given");
+                    return false;
+                switch(atoi(optarg)){
+                    case Weight1to1:
+                        argsStruct.endCondition = Weight1to1;
+                        break;
+                    case WeightTotal:
+                        argsStruct.endCondition = WeightTotal;
+                        break;
+                    case Attempts:
+                        argsStruct.endCondition = Attempts;
+                        break;
+                    default:
+                        printHelpMsg(argv[0], "Unkown end condtitions given");
+                        return false;
+                }
+                break;
+
             
         }
     }
@@ -292,6 +300,7 @@ void* runIteration(void* data){
     count += args->tertiaryRolls.size();
     std::vector<int> givenItems = args->items;
     std::vector<std::pair<int,int>> weightings = args->weightings;
+    Endcondition localEndCondition = args->endCondition;
 
     //init local variables
     std::pair<unsigned long long, unsigned long long> output;
@@ -343,8 +352,8 @@ void* runIteration(void* data){
         output.first = 0;
         output.second = 0;
         attempts = 0;
-        bool containsZero = true;    
-        while (containsZero){
+        bool endConditionNotMet = true;    
+        while (endConditionNotMet){
             for(int i = 0; i < args->numRollsPerAttempt; i++){
                 item = 0;
                 roll = chanceDistrib(generator);
@@ -360,14 +369,28 @@ void* runIteration(void* data){
                     } else
                         item = uniqueDistrib(generator);
                     itemsArray[item]++;
-                    missingUniques = 0;
-                    if(tertiaryDistrubtions.size() <= 0){
-                        for(int i = 0; i < args->uniques; i++){
-                            if(itemsArray[i] == 0)
-                                missingUniques++;
+                    //End condition with no teriaries
+                    switch(localEndCondition){
+                    case Uniques:
+                        missingUniques = 0;
+                        if(tertiaryDistrubtions.size() <= 0){
+                            for(int i = 0; i < args->uniques; i++){
+                                if(itemsArray[i] == 0)
+                                    missingUniques++;
+                            }
+                            if(args->uniques - missingUniques >= count)
+                                endConditionNotMet = false;
                         }
-                        if(args->uniques - missingUniques >= count)
-                            containsZero = false;
+                        break;
+                    case Weight1to1:
+                        endConditionNotMet = false;
+                        break;
+                    case WeightTotal:
+                        endConditionNotMet = false;
+                        break;
+                    case Attempts:
+                        endConditionNotMet = false;
+                        break;
                     }
                 }
             }
@@ -378,6 +401,7 @@ void* runIteration(void* data){
                     itemsArray[i + args->uniques]++;
             }
 
+            //end condition with tertiary rolls
             if(tertiaryDistrubtions.size() > 0){
                 missingUniques = 0;
                 for(int i = 0; i < args->uniques + args->tertiaryRolls.size(); i++){
@@ -385,7 +409,7 @@ void* runIteration(void* data){
                         missingUniques++;
                 }
                 if(args->uniques + args->tertiaryRolls.size() - missingUniques >= count)
-                    containsZero = false;
+                    endConditionNotMet = false;
             }
             attempts++;
         }
