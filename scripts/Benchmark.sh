@@ -1,6 +1,6 @@
 #!/bin/bash
-#Procs=$(nproc)
-Procs=7
+Procs=$(nproc)
+#Procs=14
 #if [ $Procs -gt 1 ]; then
 #    Procs=$((Procs-1))
 #fi

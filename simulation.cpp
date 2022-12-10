@@ -41,10 +41,10 @@ struct SimArgs {
 };
 
 struct SimResult {
-    unsigned long long attempts = 0;
-    unsigned long long totalUniques = 0;
-    unsigned long long oneToOneWieght = 0;
-    unsigned long long totalWeight = 0;
+    unsigned int attempts = 0;
+    unsigned int totalUniques = 0;
+    unsigned int oneToOneWieght = 0;
+    unsigned int totalWeight = 0;
     long double timeTaken = 0.0;
 };
 
@@ -121,16 +121,20 @@ struct separate_thousands : std::numpunct<char> {
 void printHelpMsg(char *exeName) {
     std::cout << "Usage " << exeName << std::endl;
     std::cout << "-h \t\t\t\t: show help" << std::endl;
+    std::cout << "-a <filename> \t\t\t: csv of target items gained, should be in same order as weight and include any tertiary drops. " << std::endl;
+    std::cout << "-b <factor> \t\t\t: factor by which the weighting of items is multiplied in the weights csv" << std::endl;
+    std::cout << "-c <num items>\t\t\t: only simulate until a given number of items are obtained instead of all." << std::endl;
+    std::cout << "-f <fileName>\t\t\t: name of file to output simulation results." << std::endl;
+    std::cout << "-g <fileName>\t\t\t: File with already obtained items include all items | in the same order as weighting if applicable" << std::endl;
+    std::cout << "-l <[1-3]>\t\t\t: set the end condition of the iteration to (1) 1 to 1 weight (2) total weight (3) given attempts. " << std::endl;
+    std::cout << "-p <number of rolls>\t\t: number of rolls per attempt" << std::endl;
+    std::cout << "-r <rarity N>/<rarity D>\t: (Required) Rarity of items n/d" << std::endl;
     std::cout << "-s <simulations>\t\t: (Required) number of simulations to run." << std::endl;
     std::cout << "-t <threads>\t\t\t: (Required) number of threads to run the simulation on." << std::endl;
     std::cout << "-u <uniques>\t\t\t: (Required) number of unique items to collect." << std::endl;
-    std::cout << "-r <rarity N>/<rarity D>\t: (Required) Rarity of items n/d" << std::endl;
-    std::cout << "-f <fileName>\t\t\t: name of file to output simulation results." << std::endl;
-    std::cout << "-w <fileName>\t\t\t: name of the file with unique weighting for uniques with different rates" << std::endl;
-    std::cout << "-c <num items>\t\t\t: only simulate until a given number of items are obtained instead of all." << std::endl;
-    std::cout << "-g <fileName>\t\t\t: File with already obtained items include all items | in the same order as weighting if applicable" << std::endl;
-    std::cout << "-l <[1-3]>\t\t\t: set the end condition of the iteration to (1) 1 to 1 weight (2) total weight (3) given attempts. " << std::endl;
     std::cout << "-v \t\t\t\t: Verbose output" << std::endl;
+    std::cout << "-w <fileName>\t\t\t: name of the file with unique weighting for uniques with different rates" << std::endl;
+    std::cout << "-3 <rarity N>/<rarity D>\t: add teritary roll. eg -3 1/100" << std::endl;
 }
 
 void printHelpMsg(char *exeName, std::string extraMsg) {
@@ -148,6 +152,98 @@ bool parseArgs(int argc, char *argv[], SimArgs &argsStruct) {
             case 'h':
                 printHelpMsg(argv[0]);
                 return false;
+
+            case 'a':  // target Items
+                if (optarg == NULL || strlen(optarg) <= 0) {
+                    printHelpMsg(argv[0], "Missing target items end point input");
+                    return false;
+                }
+                infile.open(optarg);
+                for (std::string temp; std::getline(infile, temp);) {
+                    argsStruct.targetItems.push_back(stoi(temp));
+                }
+                argsStruct.useTargetItems = true;
+                infile.close();
+                break;
+
+            case 'b':  // weight factor
+                if (optarg == NULL || strlen(optarg) <= 0) {
+                    printHelpMsg(argv[0], "Missing Weight Factor input");
+                    return false;
+                }
+                argsStruct.weightFactor = std::stoi(optarg);
+                break;
+
+            case 'c':  // conditional end point
+                if (optarg == NULL || strlen(optarg) <= 0) {
+                    printHelpMsg(argv[0], "Missing end condition input");
+                    return false;
+                }
+                if (optarg)
+                    argsStruct.count = std::stoi(optarg);
+                break;
+
+            case 'f':  // output file
+                if (optarg == NULL || strlen(optarg) <= 0) {
+                    printHelpMsg(argv[0], "Missing file output input");
+                    return false;
+                }
+                argsStruct.resultsFileName = optarg;
+                break;
+
+            case 'g':  // items already gained/starting point csv
+                if (optarg == NULL || strlen(optarg) <= 0) {
+                    printHelpMsg(argv[0], "Missing gained items starting point input");
+                    return false;
+                }
+                infile.open(optarg);
+                for (std::string temp; std::getline(infile, temp);) {
+                    argsStruct.obtainedItems.push_back(stoi(temp));
+                }
+                infile.close();
+                break;
+            case 'l':  // use end condition 1 to 1 weighting
+                if (optarg == NULL || strlen(optarg) <= 0) {
+                    printHelpMsg(argv[0], "Missing end condition input");
+                    return false;
+                }
+                if (argsStruct.endCondition != Uniques) {
+                    printHelpMsg(argv[0], "Multiple conflicting end condtitions given");
+                    return false;
+                } else {
+                    switch (atoi(optarg)) {
+                        case Weight1to1:
+                            argsStruct.endCondition = Weight1to1;
+                            break;
+                        case WeightTotal:
+                            argsStruct.endCondition = WeightTotal;
+                            break;
+                        case Attempts:
+                            argsStruct.endCondition = Attempts;
+                            break;
+                        default:
+                            printHelpMsg(argv[0], "Unkown end condtitions given");
+                            return false;
+                    }
+                }
+                break;
+            case 'p':
+                if (optarg == NULL || strlen(optarg) <= 0) {
+                    printHelpMsg(argv[0], "Missing Rolls per attempt input");
+                    return false;
+                }
+                argsStruct.numRollsPerAttempt = std::stoi(optarg);
+                break;
+
+            case 'r':
+                if (optarg == NULL || strlen(optarg) <= 0) {
+                    printHelpMsg(argv[0], "Missing basic rarity input");
+                    return false;
+                }
+                temp = optarg;
+                argsStruct.rarityN = std::stoi(temp.substr(0, temp.find("/")));
+                argsStruct.rarityD = std::stoi(temp.substr(temp.find("/") + 1, temp.length()));
+                break;
             case 's':
                 if (optarg == NULL || strlen(optarg) <= 0) {
                     printHelpMsg(argv[0], "Missing Simulations input");
@@ -170,23 +266,10 @@ bool parseArgs(int argc, char *argv[], SimArgs &argsStruct) {
                 }
                 argsStruct.uniques = std::stoi(optarg);
                 break;
+            case 'v':
+                argsStruct.verboseLogging = true;
+                break;
 
-            case 'r':
-                if (optarg == NULL || strlen(optarg) <= 0) {
-                    printHelpMsg(argv[0], "Missing basic rarity input");
-                    return false;
-                }
-                temp = optarg;
-                argsStruct.rarityN = std::stoi(temp.substr(0, temp.find("/")));
-                argsStruct.rarityD = std::stoi(temp.substr(temp.find("/") + 1, temp.length()));
-                break;
-            case 'f':
-                if (optarg == NULL || strlen(optarg) <= 0) {
-                    printHelpMsg(argv[0], "Missing file output input");
-                    return false;
-                }
-                argsStruct.resultsFileName = optarg;
-                break;
             case 'w':
                 if (optarg == NULL || strlen(optarg) <= 0) {
                     printHelpMsg(argv[0], "Missing Weight File input");
@@ -200,44 +283,7 @@ bool parseArgs(int argc, char *argv[], SimArgs &argsStruct) {
                 }
                 infile.close();
                 break;
-            case 'b':  // weight factor
-                if (optarg == NULL || strlen(optarg) <= 0) {
-                    printHelpMsg(argv[0], "Missing Weight Factor input");
-                    return false;
-                }
-                argsStruct.weightFactor = std::stoi(optarg);
-                break;
-            case 'c':
-                if (optarg == NULL || strlen(optarg) <= 0) {
-                    printHelpMsg(argv[0], "Missing end condition input");
-                    return false;
-                }
-                if(optarg)
-                argsStruct.count = std::stoi(optarg);
-                break;
-            case 'g':
-                if (optarg == NULL || strlen(optarg) <= 0) {
-                    printHelpMsg(argv[0], "Missing gained items starting point input");
-                    return false;
-                }
-                infile.open(optarg);
-                for (std::string temp; std::getline(infile, temp);) {
-                    argsStruct.obtainedItems.push_back(stoi(temp));
-                }
-                infile.close();
-                break;
-            case 'a':
-                if (optarg == NULL || strlen(optarg) <= 0) {
-                    printHelpMsg(argv[0], "Missing gained items starting point input");
-                    return false;
-                }
-                infile.open(optarg);
-                for (std::string temp; std::getline(infile, temp);) {
-                    argsStruct.targetItems.push_back(stoi(temp));
-                }
-                argsStruct.useTargetItems = true;
-                infile.close();
-                break;
+
             case '3':
                 if (optarg == NULL || strlen(optarg) <= 0) {
                     printHelpMsg(argv[0], "Missing tertiary input");
@@ -247,41 +293,6 @@ bool parseArgs(int argc, char *argv[], SimArgs &argsStruct) {
                 argsStruct.tertiaryRolls.push_back(std::pair<int, int>(
                     stoi(temp.substr(0, temp.find("/"))),
                     stoi(temp.substr(temp.find("/") + 1, temp.length()))));
-                break;
-            case 'p':
-                if (optarg == NULL || strlen(optarg) <= 0) {
-                    printHelpMsg(argv[0], "Missing Rolls per attempt input");
-                    return false;
-                }
-                argsStruct.numRollsPerAttempt = std::stoi(optarg);
-                break;
-            case 'v':
-                argsStruct.verboseLogging = true;
-                break;
-            case 'l':  // use end condition 1 to 1 weighting
-                if (optarg == NULL || strlen(optarg) <= 0) {
-                    printHelpMsg(argv[0], "Missing end condition input");
-                    return false;
-                }
-                if (argsStruct.endCondition != Uniques){
-                    printHelpMsg(argv[0], "Multiple conflicting end condtitions given");
-                    return false;
-                } else {
-                    switch (atoi(optarg)) {
-                        case Weight1to1:
-                            argsStruct.endCondition = Weight1to1;
-                            break;
-                        case WeightTotal:
-                            argsStruct.endCondition = WeightTotal;
-                            break;
-                        case Attempts:
-                            argsStruct.endCondition = Attempts;
-                            break;
-                        default:
-                            printHelpMsg(argv[0], "Unkown end condtitions given");
-                            return false;
-                    }
-                }
                 break;
         }
     }
@@ -338,7 +349,8 @@ void *runIteration(void *data) {
     int item = 0;
     int roll = 0;
     int tertiaryTotalWeight = 0;
-    std::vector<int> itemsArray;
+    int itemArraySize = args->uniques + args->tertiaryRolls.size();
+    std::vector<int> itemsArray(itemArraySize);
     std::vector<int> targetItemsArray;
     for (int i = 0; i < args->uniques + args->tertiaryRolls.size(); i++)
         itemsArray.push_back(0);
@@ -346,16 +358,12 @@ void *runIteration(void *data) {
     //initalize ending variables. by default the run will go until all uniques are collected
     if (args->useTargetItems)
         targetItemsArray = args->targetItems;
-    else {
-        for(int i = 0; i < itemsArray.size(); i++)
-            targetItemsArray.push_back(1);
-    }
     int count = args->count;
     if(count != 0)
         useCount = true;
     unsigned long long attempts = 0;
     unsigned long long progress = 0;
-    unsigned long long reportIncrement = (args->iterations / 1000);
+    unsigned long long reportIncrement = (args->iterations / 100);
     if (!reportIncrement > 0)
         reportIncrement = 1;
     unsigned long iterationsReported = 0;
@@ -432,7 +440,7 @@ void *runIteration(void *data) {
             // end condition checking
             int oneToOneWeightTotal = 0;
             int totalWeightTotal = 0;
-            if (useCount){
+            if (useCount) {
                 switch (localEndCondition) {
                     case Endcondition::Uniques:
                         if (args->useTargetItems) {
@@ -465,31 +473,34 @@ void *runIteration(void *data) {
 
                     case Endcondition::WeightTotal:
                         totalWeightTotal = 0;
-                        for(int i = 0; i < args->uniques -1; i++)
-                            if(itemsArray[i] > 0){
-                                if(i == 0)
+                        for (int i = 0; i < args->uniques - 1; i++)
+                            if (itemsArray[i] > 0) {
+                                if (i == 0)
                                     totalWeightTotal += weightings[i].first * itemsArray[i];
                                 else
-                                    totalWeightTotal += (weightings[i].first - weightings[i-1].first) * itemsArray[i];
+                                    totalWeightTotal += (weightings[i].first - weightings[i - 1].first) * itemsArray[i];
                             }
-                        //tertiary weight
-                        for(int i = args->uniques; i < itemsArray.size(); i++)
-                            if(itemsArray[i] > 0)
-                                totalWeightTotal += (args->tertiaryRolls[i - args->uniques].second) *  args->weightFactor * args->numRollsPerAttempt * itemsArray[i];
-                        if(totalWeightTotal >= count)
+                        // tertiary weight
+                        for (int i = args->uniques; i < itemsArray.size(); i++)
+                            if (itemsArray[i] > 0)
+                                totalWeightTotal += (args->tertiaryRolls[i - args->uniques].second) * args->weightFactor * args->numRollsPerAttempt * itemsArray[i];
+                        if (totalWeightTotal >= count)
                             endConditionMet = true;
                         break;
 
-
                     case Endcondition::Attempts:
-                        if(attempts >= count)
+                        if (attempts >= count)
                             endConditionMet = true;
                         break;
                     default:
                         break;
                 }
-            } else if (std::count(itemsArray.begin(), itemsArray.end(), 0) == 0)
+            } else {  // if (std::count(itemsArray.begin(), itemsArray.end(), 0) == 0)
                 endConditionMet = true;
+                for (auto &val : itemsArray)
+                    if (val == 0)
+                        endConditionMet = false;
+            }
         }
 
         output.attempts = attempts;
