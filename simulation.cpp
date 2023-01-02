@@ -399,7 +399,7 @@ void *runVanillaNoWeight(void *data) {
                         uniquesGained++;
                     itemsArray[item]++;
                     if (count)
-                        endConditionMet = uniquesGained >= args->uniques;
+                        endConditionMet = uniquesGained >= count;
                     else
                         endConditionMet = uniquesGained >= args->uniques;
                 }
@@ -412,7 +412,7 @@ void *runVanillaNoWeight(void *data) {
                         uniquesGained++;
                     itemsArray[i + args->uniques]++;
                     if (count) {
-                        endConditionMet = uniquesGained >= args->uniques;
+                        endConditionMet = uniquesGained >= count;
                     } else {
                         endConditionMet = uniquesGained >= args->uniques;
                     }
@@ -525,7 +525,7 @@ void *runVanillaWeight(void *data) {
                         uniquesGained++;
                     itemsArray[item]++;
                     if (count)
-                        endConditionMet = uniquesGained >= args->uniques;
+                        endConditionMet = uniquesGained >= count;
                     else
                         endConditionMet = uniquesGained >= args->uniques;
                 }
@@ -538,7 +538,7 @@ void *runVanillaWeight(void *data) {
                         uniquesGained++;
                     itemsArray[i + args->uniques]++;
                     if (count) {
-                        endConditionMet = uniquesGained >= args->uniques;
+                        endConditionMet = uniquesGained >= count;
                     } else {
                         endConditionMet = uniquesGained >= args->uniques;
                     }
