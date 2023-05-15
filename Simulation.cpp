@@ -1,5 +1,6 @@
 #include "DataStructures.h"
 #include "Simulation.h"
+#include "IO.h"
 
 #include <pthread.h>
 #include <string.h>
@@ -23,7 +24,8 @@ bool Simulation::checkForZero(const std::vector<int>& vec) {
     return *(find(vec.cbegin(), vec.cend(), 0)) == 0;
 }
 
-void *runVanillaNoWeight(void *data) {
+//TODO modernize comment
+void* Simulation::runVanillaNoWeight(void *data) {
     ThreadData *args = ((ThreadData *)data);
     std::vector<int> givenItems = args->items;
     SimResult output;
@@ -129,7 +131,8 @@ void *runVanillaNoWeight(void *data) {
     pthread_exit((void *)simResults);
 }
 
-void *runVanillaWeight(void *data) {
+//TODO modernize, comment
+void* Simulation::runVanillaWeight(void *data) {
     // parse arg data
     ThreadData *args = ((ThreadData *)data);
     std::vector<int> givenItems = args->items;
@@ -273,7 +276,9 @@ void *runBarrows(void *data) {
     ThreadData *args = ((ThreadData *)data);
 }
 */
-void *runIteration(void *data) {
+
+//todo delete after implementing the rest of the cases
+void* Simulation::runIteration(void *data) {
     // parse arg data
     ThreadData *args = ((ThreadData *)data);
 
@@ -480,7 +485,8 @@ void *runIteration(void *data) {
     pthread_exit((void *)simResults);
 }
 
-void *trackProgress(void *data) {
+//TODO figure out how to IO manage this
+void* Simulation::trackProgress(void *data) { 
     ReporterThreadData *args = (ReporterThreadData *)data;
     unsigned long long lastReported = 0;
     unsigned long long reportInterval = args->iterations / 1000;
@@ -497,7 +503,7 @@ void *trackProgress(void *data) {
         if (currentProgress >= lastReported + reportInterval) {
             long double timestamp = std::chrono::duration_cast<std::chrono::duration<double>>(tx - *args->startTimePoint).count();
             std::cout << "\33[2K\33[A\33[2K\r";  // clear lines
-            std::cout << std::fixed << std::setprecision(2) << "Time Elapsed " << std::setw(7) << timestamp << "s. Current progress:" << std::setw(3) << (currentProgress * 100) / args->iterations << "%" << std::setw(0) << " (" << FmtCmma(currentProgress) << "/" << FmtCmma(args->iterations) << ")" << std::endl
+            std::cout << std::fixed << std::setprecision(2) << "Time Elapsed " << std::setw(7) << timestamp << "s. Current progress:" << std::setw(3) << (currentProgress * 100) / args->iterations << "%" << std::setw(0) << " (" << IOUtils::FmtCmma(currentProgress) << "/" << IOUtils::FmtCmma(args->iterations) << ")" << std::endl
                       << std::flush;
             std::cout << "[" << std::flush;
             for (int i = 1; i <= 80; i++) {

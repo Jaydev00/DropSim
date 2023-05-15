@@ -1,7 +1,9 @@
-#include <thread>
 #include "Simulation.h"
 #include "DataStructures.h"
 #include "IO.h"
+
+#include <thread>
+#include <fstream>
 
 int main(int argc, char *argv[]) {
     //New
@@ -10,10 +12,7 @@ int main(int argc, char *argv[]) {
     SimArgs args;
     int progressStep = 10;
     bool verboseLogging = false;
-    std::string outputFileName = "";
-    std::string uniquesFileName = "";
-    std::string obtainedFileName = "";
-    if (!parseArgs(argc, argv, args)) {
+    if (!IOUtils::parseArgs(argc, argv, args)) {
         return -1;
     }
     // argument parsing
@@ -23,18 +22,8 @@ int main(int argc, char *argv[]) {
     pthread_mutex_t progressMutex = PTHREAD_MUTEX_INITIALIZER;
     unsigned long long iterationProgress = 0;
 
-    std::cout << "Running " << FmtCmma(args.iterations) << " Simulations with " << args.uniques << " slots with " << FmtCmma(args.rarityN) << "/" << FmtCmma(args.rarityD) << " rarity on " << args.threads << " threads." << std::endl;
-    if (args.count > 0)
-        std::cout << "Stopping after " << args.count << " Items Obtained." << std::endl;
-    if (args.numRollsPerAttempt > 1)
-        std::cout << "Rolling for Loot " << args.numRollsPerAttempt << " Times per Attempt." << std::endl;
-    if (args.weightings.size() > 0)
-        std::cout << "Using Weight File" << std::endl;
-    if (args.obtainedItems.size() > 0)
-        std::cout << "Using Obtained Items File" << std::endl;
-    if (args.tertiaryRolls.size() > 0)
-        std::cout << "Rolling " << args.tertiaryRolls.size() << " Tertiary Roll(s) per attempt" << std::endl;
-    std::cout << std::endl;
+    IOUtils::printStartParameters(args);
+
 
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
     std::vector<std::vector<SimResult>> results;

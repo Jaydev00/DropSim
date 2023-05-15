@@ -5,11 +5,11 @@
 #include <unistd.h>
 #include <cstring>
 
-IOManager::IOManager(){
+IOUtils::IOUtils(){
 
 }
 
-void IOManager::printHelpMsg(char *exeName) {
+void IOUtils::printHelpMsg(char *exeName) {
     std::cout << "Usage " << exeName << std::endl;
     std::cout << "-h \t\t\t\t: show help" << std::endl;
     std::cout << "-a <filename> \t\t\t: csv of target items gained, should be in same order as weight and include any tertiary drops. " << std::endl;
@@ -29,12 +29,12 @@ void IOManager::printHelpMsg(char *exeName) {
 }
 
 
-void IOManager::printHelpMsg(char *exeName, std::string extraMsg) {
+void IOUtils::printHelpMsg(char* exeName, const std::string &extraMsg) {
     std::cout << extraMsg << std::endl;
     printHelpMsg(exeName);
 }
 
-bool IOManager::parseArgs(int argc, char *argv[], SimArgs &argsStruct) {
+bool IOUtils::parseArgs(const int& argc, char* argv[], SimArgs &argsStruct) {
     int opt;
     std::string temp;
     std::ifstream infile;
@@ -208,11 +208,28 @@ bool IOManager::parseArgs(int argc, char *argv[], SimArgs &argsStruct) {
 
 
 template <class T>
-auto IOManager::FmtCmma(T value) {
+auto IOUtils::FmtCmma(T value) {
     auto thousands = std::make_unique<separate_thousands>();
     std::stringstream ss;
     ss.imbue(std::locale(std::cout.getloc(), thousands.release()));
     ss << std::fixed << std::setprecision(2) << value;
     return ss.str();
 }
+
+void IOUtils::printStartParameters(const SimArgs& args){
+    std::cout << "Running " << FmtCmma(args.iterations) << " Simulations with " << args.uniques << " slots with " << FmtCmma(args.rarityN) << "/" << FmtCmma(args.rarityD) << " rarity on " << args.threads << " threads." << std::endl;
+    if (args.count > 0)
+        std::cout << "Stopping after " << args.count << " Items Obtained." << std::endl;
+    if (args.numRollsPerAttempt > 1)
+        std::cout << "Rolling for Loot " << args.numRollsPerAttempt << " Times per Attempt." << std::endl;
+    if (args.weightings.size() > 0)
+        std::cout << "Using Weight File" << std::endl;
+    if (args.obtainedItems.size() > 0)
+        std::cout << "Using Obtained Items File" << std::endl;
+    if (args.tertiaryRolls.size() > 0)
+        std::cout << "Rolling " << args.tertiaryRolls.size() << " Tertiary Roll(s) per attempt" << std::endl;
+    std::cout << std::endl;
+}
+
+
 
