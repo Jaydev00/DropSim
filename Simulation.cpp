@@ -18,6 +18,19 @@
 #include <random>
 #include <thread>
 #include <vector>
+#include <deque>
+
+    //**DONE
+    // handle rolls, basic case 1 roll for 1 item no restrictions
+    // ##BasicUniques, BasicRarityN/D, iterations, count
+    // case multiple rolls for all items   (clue casket)
+    // ##numRollsPerAttempt
+
+    //**INPROGRESS
+    // case 1+ basic rolls + tertiary roll (zulrah)
+    // ##tertiaryDrops teriarityRate -- multiple rates, one for each drop
+    // case multiple rolls with exclusions (barrows)
+    // #specific case for barrows
 
 
 bool Simulation::checkForZero(const std::vector<int>& vec) {
@@ -25,42 +38,39 @@ bool Simulation::checkForZero(const std::vector<int>& vec) {
 }
 
 //TODO modernize comment
-void* Simulation::runVanillaNoWeight(void *data) {
-    ThreadData *args = ((ThreadData *)data);
-    std::vector<int> givenItems = args->items;
+std::deque<SimResult> Simulation::runVanillaNoWeight(const ThreadData& args) {
+    std::vector<int> givenItems = args.items;
     SimResult output;
 
     int item = 0;
     int roll = 0;
-    int itemArraySize = args->uniques + args->tertiaryRolls.size();
+    int itemArraySize = args.uniques + args.tertiaryRolls.size();
     std::vector<int> itemsArray(itemArraySize);
     std::vector<int> targetItemsArray;
-    if (args->useTargetItems)
-        targetItemsArray = args->targetItems;
-    int count = args->count;
+    if (args.useTargetItems)
+        targetItemsArray = args.targetItems;
+    int count = args.count;
 
     unsigned long long attempts = 0;
     unsigned long long progress = 0;
-    unsigned long long reportIncrement = (args->iterations / 100);
+    unsigned long long reportIncrement = (args.iterations / 100);
     if (!reportIncrement > 0)
         reportIncrement = 1;
     unsigned long iterationsReported = 0;
     static thread_local std::mt19937 generator;
     generator.seed(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-    std::uniform_int_distribution<int> chanceDistrib(1, args->rarityD);
-    std::uniform_int_distribution<int> uniqueDistrib(0, args->uniques - 1);
+    std::uniform_int_distribution<int> chanceDistrib(1, args.rarityD);
+    std::uniform_int_distribution<int> uniqueDistrib(0, args.uniques - 1);
     std::vector<std::uniform_int_distribution<int>> tertiaryDistrubtions;
-    std::vector<SimResult> *simResults = new std::vector<SimResult>();
-    for (std::pair<int, int> roll : args->tertiaryRolls) {
+    std::deque<SimResult> simResults;
+    for (std::pair<int, int> roll : args.tertiaryRolls) {
         tertiaryDistrubtions.push_back(std::uniform_int_distribution<int>(roll.first, roll.second));
     }
 
     // just uniques, no weight file
-    for (unsigned long long iteration = 0; iteration < args->iterations; iteration++) {
+    for (unsigned long long iteration = 0; iteration < args.iterations; iteration++) {
         if (iteration > 0 && iteration % reportIncrement == 0) {  // add progress
-            pthread_mutex_lock(args->progressMutex);
-            *(args->globalProgress) += (iteration - iterationsReported);
-            pthread_mutex_unlock(args->progressMutex);
+            args.globalProgressCounter->store(args.globalProgressCounter->load() + (iteration - iterationsReported)); //it's atomic right? shouldn't need a mutex
             iterationsReported = iteration;
         }
         // setup sim
@@ -83,10 +93,10 @@ void* Simulation::runVanillaNoWeight(void *data) {
         while (!endConditionMet) {
             attempts++;
             // regular table rolls
-            for (int i = 0; i < args->numRollsPerAttempt; i++) {
+            for (int i = 0; i < args.numRollsPerAttempt; i++) {
                 item = 0;
                 roll = chanceDistrib(generator);
-                if (roll <= args->rarityN) {
+                if (roll <= args.rarityN) {
                     item = uniqueDistrib(generator);
                     if (itemsArray[item] == 0)
                         uniquesGained++;
@@ -94,20 +104,20 @@ void* Simulation::runVanillaNoWeight(void *data) {
                     if (count)
                         endConditionMet = uniquesGained >= count;
                     else
-                        endConditionMet = uniquesGained >= args->uniques;
+                        endConditionMet = uniquesGained >= args.uniques;
                 }
             }
             // tertiary rolls
             for (int i = 0; i < tertiaryDistrubtions.size(); i++) {
                 int temp = tertiaryDistrubtions[i](generator);
                 if (temp == 1) {
-                    if (itemsArray[i + args->uniques] == 0)
+                    if (itemsArray[i + args.uniques] == 0)
                         uniquesGained++;
-                    itemsArray[i + args->uniques]++;
+                    itemsArray[i + args.uniques]++;
                     if (count) {
                         endConditionMet = uniquesGained >= count;
                     } else {
-                        endConditionMet = uniquesGained >= args->uniques;
+                        endConditionMet = uniquesGained >= args.uniques;
                     }
                 }
             }
@@ -122,17 +132,16 @@ void* Simulation::runVanillaNoWeight(void *data) {
         output.totalWeight = output.totalUniques;
         std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
         output.timeTaken = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1).count();
-        simResults->push_back(output);
+        simResults.push_back(output);
     }
     // report last section Data
-    pthread_mutex_lock(args->progressMutex);
-    *(args->globalProgress) += args->iterations - iterationsReported;
-    pthread_mutex_unlock(args->progressMutex);
-    pthread_exit((void *)simResults);
+    args.globalProgressCounter->store(args.globalProgressCounter->load() + (args.iterations - iterationsReported));
+    return simResults;
 }
 
 //TODO modernize, comment
-void* Simulation::runVanillaWeight(void *data) {
+/*
+std::deque<SimResult> Simulation::runVanillaWeight(void *data) {
     // parse arg data
     ThreadData *args = ((ThreadData *)data);
     std::vector<int> givenItems = args->items;
@@ -265,6 +274,7 @@ void* Simulation::runVanillaWeight(void *data) {
     pthread_mutex_unlock(args->progressMutex);
     pthread_exit((void *)simResults);
 }
+*/
 /*
 void *runWeight(void *data) {
     ThreadData *args = ((ThreadData *)data);
@@ -278,6 +288,7 @@ void *runBarrows(void *data) {
 */
 
 //todo delete after implementing the rest of the cases
+/*
 void* Simulation::runIteration(void *data) {
     // parse arg data
     ThreadData *args = ((ThreadData *)data);
@@ -484,20 +495,19 @@ void* Simulation::runIteration(void *data) {
     pthread_mutex_unlock(args->progressMutex);
     pthread_exit((void *)simResults);
 }
-
+*/
 //TODO figure out how to IO manage this
-void* Simulation::trackProgress(void *data) { 
-    ReporterThreadData *args = (ReporterThreadData *)data;
+void Simulation::trackProgress(const ReporterThreadData& args) { 
     unsigned long long lastReported = 0;
-    unsigned long long reportInterval = args->iterations / 1000;
+    unsigned long long reportInterval = args.iterations / 1000;
     unsigned long long currentProgress = 0;
     std::string test = "";
     std::cout << "\033[?25l";
     std::cout << std::endl;
-    while (lastReported < args->iterations && lastReported + reportInterval < args->iterations) {
+    while (lastReported < args.iterations && lastReported + reportInterval < args.iterations) {
         std::this_thread::sleep_for(std::chrono::microseconds(250000));
         std::chrono::high_resolution_clock::time_point tx = std::chrono::high_resolution_clock::now();
-        pthread_mutex_lock(args->progressMutex);
+        pthread_mutex_lock(args.progressMutex);
         currentProgress = *args->globalProgress;
         pthread_mutex_unlock(args->progressMutex);
         if (currentProgress >= lastReported + reportInterval) {

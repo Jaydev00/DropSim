@@ -27,20 +27,7 @@ struct SimArgs {
     std::vector<std::pair<int, int>> tertiaryRolls;
 };
 
-struct ThreadData {
-    //**DONE
-    // handle rolls, basic case 1 roll for 1 item no restrictions
-    // ##BasicUniques, BasicRarityN/D, iterations, count
-    // case multiple rolls for all items   (clue casket)
-    // ##numRollsPerAttempt
-
-    //**INPROGRESS
-    // case 1+ basic rolls + tertiary roll (zulrah)
-    // ##tertiaryDrops teriarityRate -- multiple rates, one for each drop
-    // case multiple rolls with exclusions (barrows)
-    // #specific case for barrows
-   public:
-    ThreadData(SimArgs args, pthread_mutex_t *nprogressMutex, unsigned long long *nglobalProgress) {
+ThreadData::ThreadData(SimArgs args, const std::shared_ptr<std::atomic_ullong>& nglobalprogressCounter, const std::shared_ptr<std::mutex>& nprogressMutexPtr) {
         endCondition = args.endCondition;
         rarityN = args.rarityN;
         rarityD = args.rarityD;
@@ -48,8 +35,8 @@ struct ThreadData {
         iterations = args.iterations / args.threads;
         count = args.count;
         numRollsPerAttempt = args.numRollsPerAttempt;
-        progressMutex = nprogressMutex;
-        globalProgress = nglobalProgress;
+        globalProgressCounter = nglobalprogressCounter;
+        progressMutexPtr = nprogressMutexPtr;
         for (int i = 0; i < args.weightings.size(); i++)
             weightings.push_back(args.weightings[i]);
         for (int i = 0; i < args.tertiaryRolls.size(); i++)
@@ -61,22 +48,6 @@ struct ThreadData {
         useTargetItems = args.useTargetItems;
         weightFactor = args.weightFactor;
     }
-    pthread_mutex_t *progressMutex;
-    std::vector<std::pair<int, int>> weightings;
-    std::vector<int> items;
-    std::vector<std::pair<int, int>> tertiaryRolls;
-    std::vector<int> targetItems;
-    bool useTargetItems;
-    EndCondition endCondition;
-    int rarityN;
-    int rarityD;
-    int uniques;
-    int count;
-    int numRollsPerAttempt;
-    int weightFactor;
-    unsigned long long iterations;
-    unsigned long long *globalProgress;
-};
 
 struct ReporterThreadData {
    public:
