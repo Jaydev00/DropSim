@@ -1,17 +1,3 @@
-#ifndef DATA_STRUCTURES_H
-#define DATA_STRUCTURES_H
-#include "DataStructures.cpp"
-#include <vector>
-#include <string>
-#include <atomic>
-
-enum class EndCondition;
-struct SimArgs;
-struct ReporterThreadData;
-struct ThreadData;
-struct SimResult;
-struct separate_thousands;
-
 class ThreadData {
 
     public:
@@ -33,5 +19,3 @@ class ThreadData {
     int weightFactor;
     unsigned long long iterations;
 };
-
-#endif

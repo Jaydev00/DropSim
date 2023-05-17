@@ -24,6 +24,7 @@ int main(int argc, char *argv[]) {
 
     IOUtils::printStartParameters(args);
 
+    ThreadData data;
 
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
     std::vector<std::vector<SimResult>> results;

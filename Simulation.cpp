@@ -1,8 +1,6 @@
-#include "DataStructures.h"
 #include "Simulation.h"
 #include "IO.h"
 
-#include <pthread.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -496,6 +494,7 @@ void* Simulation::runIteration(void *data) {
     pthread_exit((void *)simResults);
 }
 */
+
 //TODO figure out how to IO manage this
 void Simulation::trackProgress(const ReporterThreadData& args) { 
     unsigned long long lastReported = 0;
@@ -507,17 +506,15 @@ void Simulation::trackProgress(const ReporterThreadData& args) {
     while (lastReported < args.iterations && lastReported + reportInterval < args.iterations) {
         std::this_thread::sleep_for(std::chrono::microseconds(250000));
         std::chrono::high_resolution_clock::time_point tx = std::chrono::high_resolution_clock::now();
-        pthread_mutex_lock(args.progressMutex);
-        currentProgress = *args->globalProgress;
-        pthread_mutex_unlock(args->progressMutex);
+        currentProgress = args.globalprogressCounter->load();
         if (currentProgress >= lastReported + reportInterval) {
-            long double timestamp = std::chrono::duration_cast<std::chrono::duration<double>>(tx - *args->startTimePoint).count();
+            long double timestamp = std::chrono::duration_cast<std::chrono::duration<double>>(tx - *args.startTimePoint).count();
             std::cout << "\33[2K\33[A\33[2K\r";  // clear lines
-            std::cout << std::fixed << std::setprecision(2) << "Time Elapsed " << std::setw(7) << timestamp << "s. Current progress:" << std::setw(3) << (currentProgress * 100) / args->iterations << "%" << std::setw(0) << " (" << IOUtils::FmtCmma(currentProgress) << "/" << IOUtils::FmtCmma(args->iterations) << ")" << std::endl
+            std::cout << std::fixed << std::setprecision(2) << "Time Elapsed " << std::setw(7) << timestamp << "s. Current progress:" << std::setw(3) << (currentProgress * 100) / args.iterations << "%" << std::setw(0) << " (" << IOUtils::FmtCmma(std::to_string(currentProgress)) << "/" << IOUtils::FmtCmma(args.iterations) << ")" << std::endl
                       << std::flush;
             std::cout << "[" << std::flush;
             for (int i = 1; i <= 80; i++) {
-                if (i > ((currentProgress * 80) / args->iterations))
+                if (i > ((currentProgress * 80) / args.iterations))
                     std::cout << " " << std::flush;
                 else
                     std::cout << "\u2588" << std::flush;
@@ -528,7 +525,5 @@ void Simulation::trackProgress(const ReporterThreadData& args) {
     }
     std::cout << "\033[?25h";
     std::cout << std::endl;
-    pthread_exit(NULL);
-    return NULL;
 }
 

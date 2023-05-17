@@ -1,7 +1,7 @@
 #ifndef IO_H
 #define IO_H
 #include <string>
-#include "DataStructures.h"
+#include "SimArgs.h"
 
 class IOUtils{
     public:
