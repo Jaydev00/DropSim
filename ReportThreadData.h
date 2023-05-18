@@ -8,11 +8,11 @@ class ReporterThreadData {
    public:
     ReporterThreadData(const std::shared_ptr<std::atomic_ullong>&,
         const unsigned long long&, 
-        const std::shared_ptr<std::chrono::high_resolution_clock::time_point>&);
+        const std::chrono::high_resolution_clock::time_point&);
     
     std::shared_ptr<std::atomic_ullong> globalprogressCounter;
     unsigned long long iterations;
-    std::shared_ptr<std::chrono::high_resolution_clock::time_point> startTimePoint;
+    std::chrono::high_resolution_clock::time_point startTimePoint;
 };
 
 #endif

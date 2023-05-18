@@ -1,5 +1,5 @@
 #include "IO.h"
-#include "DataStructures.h"
+#include "SimArgs.h"
 #include <iostream>
 #include <fstream>
 #include <unistd.h>

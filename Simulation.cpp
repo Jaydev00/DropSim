@@ -508,9 +508,9 @@ void Simulation::trackProgress(const ReporterThreadData& args) {
         std::chrono::high_resolution_clock::time_point tx = std::chrono::high_resolution_clock::now();
         currentProgress = args.globalprogressCounter->load();
         if (currentProgress >= lastReported + reportInterval) {
-            long double timestamp = std::chrono::duration_cast<std::chrono::duration<double>>(tx - *args.startTimePoint).count();
+            long double timestamp = std::chrono::duration_cast<std::chrono::duration<double>>(tx - args.startTimePoint).count();
             std::cout << "\33[2K\33[A\33[2K\r";  // clear lines
-            std::cout << std::fixed << std::setprecision(2) << "Time Elapsed " << std::setw(7) << timestamp << "s. Current progress:" << std::setw(3) << (currentProgress * 100) / args.iterations << "%" << std::setw(0) << " (" << IOUtils::FmtCmma(std::to_string(currentProgress)) << "/" << IOUtils::FmtCmma(args.iterations) << ")" << std::endl
+            std::cout << std::fixed << std::setprecision(2) << "Time Elapsed " << std::setw(7) << timestamp << "s. Current progress:" << std::setw(3) << (currentProgress * 100) / args.iterations << "%" << std::setw(0) << " (" << IOUtils::FmtCmma(std::to_string(currentProgress)) << "/" << IOUtils::FmtCmma(std::to_string(args.iterations)) << ")" << std::endl
                       << std::flush;
             std::cout << "[" << std::flush;
             for (int i = 1; i <= 80; i++) {

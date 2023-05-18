@@ -1,9 +1,11 @@
+#ifndef THREAD_DATA_H
+#define THREAD_DATA_H
+
 class ThreadData {
 
     public:
     ThreadData();
-    ThreadData(SimArgs args, const std::shared_ptr<std::atomic_ullong>& nglobalprogressCounter, const std::shared_ptr<std::mutex>& nprogressMutexPtr); 
-    std::shared_ptr<std::mutex> progressMutexPtr;
+    ThreadData(SimArgs args, const std::shared_ptr<std::atomic_ullong>& nglobalprogressCounter); 
     std::shared_ptr<std::atomic_ullong> globalProgressCounter;
     std::vector<std::pair<int, int>> weightings;
     std::vector<int> items;
@@ -19,3 +21,5 @@ class ThreadData {
     int weightFactor;
     unsigned long long iterations;
 };
+
+#endif
