@@ -1,7 +1,7 @@
 #include "ThreadData.h"
-#include "SimArgs.h"
 
-ThreadData::ThreadData(SimArgs args, const std::shared_ptr<std::atomic_ullong>& nglobalprogressCounter) {
+
+ThreadData::ThreadData(const SimArgs& args, const std::shared_ptr<std::atomic_ullong>& nglobalprogressCounter) {
         endCondition = args.endCondition;
         rarityN = args.rarityN;
         rarityD = args.rarityD;

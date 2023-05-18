@@ -1,8 +1,7 @@
 #include "Simulation.h"
-#include "SimArgs.h"
-#include "ReportThreadData.h"
-#include "SimResult.h"
 #include "IO.h"
+#include "ReportThreadData.h"
+#include "enum.h"
 
 #include <thread>
 #include <fstream>
@@ -29,8 +28,6 @@ int main(int argc, char *argv[]) {
 
     IOUtils::printStartParameters(args);
 
-    ThreadData data;
-
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
     std::deque<std::deque<SimResult>> results;
     std::shared_ptr<std::atomic_ullong> progress(0);
@@ -48,14 +45,14 @@ int main(int argc, char *argv[]) {
     // create reporter thread
     ReporterThreadData reporterThreadData(progress, args.iterations, t1);
     Simulation simulation;
-    auto reporterThreadFuture = std::async(std::launch::async, Simulation::trackProgress, &simulation, reporterThreadData);
+    auto reporterThreadFuture = std::async(std::launch::async, Simulation::trackProgress, reporterThreadData);
     // create worker threads
     for (int i = 0; i < args.threads; i++) {
         if(args.endCondition == EndCondition::Uniques)
             if(args.weightings.size())
-                threadFutures.push_back(std::async(std::launch::async, Simulation::runVanillaWeight, &simulation, threadArguments[i]));
+                threadFutures.push_back(std::async(std::launch::async, Simulation::runVanillaWeight, threadArguments[i]));
             else
-                threadFutures.push_back(std::async(std::launch::async, Simulation::runVanillaNoWeight, &simulation, threadArguments[i]));
+                threadFutures.push_back(std::async(std::launch::async, Simulation::runVanillaNoWeight, threadArguments[i]));
         if (verboseLogging)
             std::cout << "Creating thread " << i << std::endl;
     }

@@ -1,11 +1,16 @@
 #ifndef THREAD_DATA_H
 #define THREAD_DATA_H
+#include "SimArgs.h"
+#include <vector>
+#include <memory>
+#include <string>
+#include <atomic>
 
 class ThreadData {
 
     public:
     ThreadData();
-    ThreadData(SimArgs args, const std::shared_ptr<std::atomic_ullong>& nglobalprogressCounter); 
+    ThreadData(const SimArgs&, const std::shared_ptr<std::atomic_ullong>&); 
     std::shared_ptr<std::atomic_ullong> globalProgressCounter;
     std::vector<std::pair<int, int>> weightings;
     std::vector<int> items;

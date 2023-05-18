@@ -1,13 +1,11 @@
 #include "IO.h"
-#include "SimArgs.h"
 #include <iostream>
 #include <fstream>
 #include <unistd.h>
 #include <cstring>
-
-IOUtils::IOUtils(){
-
-}
+#include <memory>
+#include <sstream>
+#include <iomanip>
 
 void IOUtils::printHelpMsg(char *exeName) {
     std::cout << "Usage " << exeName << std::endl;
@@ -204,16 +202,6 @@ bool IOUtils::parseArgs(const int& argc, char* argv[], SimArgs &argsStruct) {
         return false;
     }
     return true;
-}
-
-
-template <class T>
-auto IOUtils::FmtCmma(T value) {
-    auto thousands = std::make_unique<separate_thousands>();
-    std::stringstream ss;
-    ss.imbue(std::locale(std::cout.getloc(), thousands.release()));
-    ss << std::fixed << std::setprecision(2) << value;
-    return ss.str();
 }
 
 void IOUtils::printStartParameters(const SimArgs& args){
