@@ -1,0 +1,2 @@
+#define DropSimulation_VERSION_MAJOR @DropSimulation_VERSION_MAJOR@
+#define DropSimulation_VERSION_MINOR @DropSimulation_VERSION_MINOR@

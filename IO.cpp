@@ -1,4 +1,5 @@
 #include "IO.h"
+#include "versions.h"
 #include <iostream>
 #include <fstream>
 #include <unistd.h>
@@ -8,7 +9,7 @@
 #include <iomanip>
 
 void IOUtils::printHelpMsg(char *exeName) {
-    std::cout << "Usage " << exeName << std::endl;
+    std::cout << "Usage " << exeName << "Version " << DropSimulation_VERSION_MAJOR << "." << DropSimulation_VERSION_MINOR << std::endl;
     std::cout << "-h \t\t\t\t: show help" << std::endl;
     std::cout << "-a <filename> \t\t\t: csv of target items gained, should be in same order as weight and include any tertiary drops. " << std::endl;
     std::cout << "-b <factor> \t\t\t: factor by which the weighting of items is multiplied in the weights csv" << std::endl;

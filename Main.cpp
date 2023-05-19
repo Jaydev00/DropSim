@@ -1,14 +1,20 @@
+/*
+Drop Simulator
+Version 1.0
+Last Modified 5/18/2023
+*/
+
 #include "Simulation.h"
 #include "IO.h"
 #include "ReportThreadData.h"
 #include "enum.h"
-
 #include <thread>
 #include <fstream>
 #include <future>
 #include <iostream>
 #include <cmath>
 #include <iomanip>
+#include <unistd.h>
 
 int main(int argc, char *argv[]) {
     //New
@@ -30,7 +36,8 @@ int main(int argc, char *argv[]) {
 
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
     std::deque<std::deque<SimResult>> results;
-    std::shared_ptr<std::atomic_ullong> progress(0);
+    std::shared_ptr<std::atomic_ullong> progress(new std::atomic_ullong);
+    progress->store(0);
     std::vector<ThreadData> threadArguments;
     std::deque<std::future<std::deque<SimResult>>> threadFutures;
     std::vector<std::pair<int, int>> weightings;
