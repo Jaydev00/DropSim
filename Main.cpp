@@ -1,7 +1,7 @@
 /*
 Drop Simulator
 Version 1.0
-Last Modified 5/18/2023
+Last Modified 5/29/2023
 */
 
 #include "Simulation.h"
@@ -56,10 +56,15 @@ int main(int argc, char *argv[]) {
     // create worker threads
     for (int i = 0; i < args.threads; i++) {
         if(args.endCondition == EndCondition::Uniques)
-            if(args.weightings.size())
-                threadFutures.push_back(std::async(std::launch::async, Simulation::runVanillaWeight, threadArguments[i]));
-            else
-                threadFutures.push_back(std::async(std::launch::async, Simulation::runVanillaNoWeight, threadArguments[i]));
+            if(args.weightings.size()){
+                //threadFutures.push_back(std::async(std::launch::async, Simulation::runVanillaWeight, threadArguments[i]));
+                threadFutures.push_back(std::async(Simulation::runVanillaWeight, threadArguments[i]));
+            }
+            else{
+                //threadFutures.push_back(std::async(std::launch::async, Simulation::runVanillaNoWeight, threadArguments[i]));
+                threadFutures.push_back(std::async(Simulation::runVanillaNoWeight, threadArguments[i]));
+            }
+
         if (verboseLogging)
             std::cout << "Creating thread " << i << std::endl;
     }
@@ -69,6 +74,8 @@ int main(int argc, char *argv[]) {
         results.push_back(threadFutures[i].get());
     }
     // end threaded work
+    std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
     reporterThreadFuture.wait();
 
     unsigned long long sumAttempts = 0;
@@ -81,8 +88,6 @@ int main(int argc, char *argv[]) {
     unsigned long long lowestAttemptItems = 0;
     long double sumtime = 0.0;
     double averageTime = 0.0;
-    std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
     std::cout << std::endl
               << std::endl
               << std::endl
@@ -147,10 +152,11 @@ int main(int argc, char *argv[]) {
     standardDev = sqrt(stdSum / args.iterations);
 
     // output results
-    std::cout << std::setprecision(6) << std::endl;
+    std::cout << std::setprecision(6);
     std::cout << "Iterations: " << IOUtils::FmtCmma(totalIterations) << std::endl;
     std::cout << "Sum Attempts " << IOUtils::FmtCmma(sumAttempts) << std::endl;
     std::cout << "Average attempts: " << formattedAverageAttempts << ", Average items: " << formattedAverageItems << "." << std::endl;
+    std::cout << "Total Simulation CPU Time " << sumtime << " seconds." << std::endl;
     std::cout << "Average Time Taken per Sim: " << averageTime << std::endl;
     std::cout << "Attempts Standard Deviation: " << IOUtils::FmtCmma(standardDev) << std::endl;
     std::cout << "highest attempts: " << IOUtils::FmtCmma(highest_attempt) << ", with " << IOUtils::FmtCmma(highestAttemptItems)

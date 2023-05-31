@@ -202,6 +202,10 @@ bool IOUtils::parseArgs(const int& argc, char* argv[], SimArgs &argsStruct) {
         printHelpMsg(argv[0]);
         return false;
     }
+    if(argsStruct.numRollsPerAttempt < 1){
+        std::cout << "Detected Number of 'Rolls Per Attempt' as less than 1, setting to 1" << std::endl;
+        argsStruct.numRollsPerAttempt = 1;
+    }
     return true;
 }
 

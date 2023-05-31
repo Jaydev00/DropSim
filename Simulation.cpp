@@ -56,8 +56,9 @@ std::deque<SimResult> Simulation::runVanillaNoWeight(const ThreadData& args) {
     if (!reportIncrement > 0)
         reportIncrement = 1;
     unsigned long iterationsReported = 0;
-    static thread_local std::mt19937 generator;
-    generator.seed(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+    std::random_device rd;
+    std::mt19937 generator(rd());
+    generator.seed(rd());
     std::uniform_int_distribution<int> chanceDistrib(1, args.rarityD);
     std::uniform_int_distribution<int> uniqueDistrib(0, args.uniques - 1);
     std::vector<std::uniform_int_distribution<int>> tertiaryDistrubtions;
@@ -65,21 +66,19 @@ std::deque<SimResult> Simulation::runVanillaNoWeight(const ThreadData& args) {
     for (std::pair<int, int> roll : args.tertiaryRolls) {
         tertiaryDistrubtions.push_back(std::uniform_int_distribution<int>(roll.first, roll.second));
     }
+    //TODO
 
     // just uniques, no weight file
     for (unsigned long long iteration = 0; iteration < args.iterations; iteration++) {
         if (iteration > 0 && iteration % reportIncrement == 0) {  // add progress
-            args.globalProgressCounter->store(args.globalProgressCounter->load() + (iteration - iterationsReported)); //it's atomic right? shouldn't need a mutex
+            args.globalProgressCounter->fetch_add(iteration - iterationsReported); //it's atomic right? shouldn't need a mutex
             iterationsReported = iteration;
         }
-        // setup sim
-        // set up starting point
+        //initalize or reinitalize variables for iteration start
         if (givenItems.size() > 0) {
             itemsArray = givenItems;
         } else
             std::fill(itemsArray.begin(), itemsArray.end(), 0);
-
-        // set up endpoint
 
         output.attempts = 0;
         output.totalUniques = 0;
@@ -88,22 +87,26 @@ std::deque<SimResult> Simulation::runVanillaNoWeight(const ThreadData& args) {
         attempts = 0;
         int uniquesGained = 0;
         bool endConditionMet = false;
+        int endUniques = 0;
+        if(count)
+            endUniques = count;
+        else 
+            endUniques = args.uniques;
         std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+        int rarity = args.rarityN;
+
+        //run iteration
         while (!endConditionMet) {
             attempts++;
-            // regular table rolls
+            //regular loot table rolls
             for (int i = 0; i < args.numRollsPerAttempt; i++) {
                 item = 0;
                 roll = chanceDistrib(generator);
-                if (roll <= args.rarityN) {
-                    item = uniqueDistrib(generator);
-                    if (itemsArray[item] == 0)
+                if (roll <= rarity) {
+                    if (itemsArray[roll-1] == 0)
                         uniquesGained++;
-                    itemsArray[item]++;
-                    if (count)
-                        endConditionMet = uniquesGained >= count;
-                    else
-                        endConditionMet = uniquesGained >= args.uniques;
+                    itemsArray[roll-1]++;
+                    endConditionMet = uniquesGained >= endUniques;
                 }
             }
             // tertiary rolls
@@ -113,11 +116,7 @@ std::deque<SimResult> Simulation::runVanillaNoWeight(const ThreadData& args) {
                     if (itemsArray[i + args.uniques] == 0)
                         uniquesGained++;
                     itemsArray[i + args.uniques]++;
-                    if (count) {
-                        endConditionMet = uniquesGained >= count;
-                    } else {
-                        endConditionMet = uniquesGained >= args.uniques;
-                    }
+                    endConditionMet = uniquesGained >= endUniques;
                 }
             }
         }
@@ -134,7 +133,7 @@ std::deque<SimResult> Simulation::runVanillaNoWeight(const ThreadData& args) {
         simResults.push_back(output);
     }
     // report last section Data
-    args.globalProgressCounter->store(args.globalProgressCounter->load() + (args.iterations - iterationsReported));
+    args.globalProgressCounter->fetch_add(args.iterations - iterationsReported);
     return simResults;
 }
 
