@@ -8,6 +8,7 @@ class SimResult {
     unsigned int totalUniques;
     unsigned int oneToOneWieght;
     unsigned int totalWeight;
+    unsigned int oneToOneUniques;
     long double timeTaken;
 };
 #endif

@@ -10,8 +10,11 @@
 class Simulation {
     public:
         static bool checkForZero(const std::vector<int>& vec);
-        static std::deque<SimResult> runVanillaNoWeight(const ThreadData& args);
-        static std::deque<SimResult> runVanillaWeight(const ThreadData& args);
+        std::deque<SimResult> runVanillaNoWeight(const ThreadData& args);
+        std::deque<SimResult> runVanillaWeight(const ThreadData& args);
+        std::deque<SimResult> run1to1Weight(const ThreadData& args);
+        std::deque<SimResult> runAttempts(const ThreadData& args);
+        std::deque<std::deque<SimResult>> runSims(std::vector<ThreadData> threadArguments, SimArgs args);
         void runIteration(void *data);
         static void trackProgress(const ReporterThreadData&);
     protected:

@@ -5,4 +5,4 @@ Procs=$(nproc)
 #    Procs=$((Procs-1))
 #fi
 echo $Procs
-./simulation -t $Procs -s 100000 -r 1/100 -u 10 -p 5 -l 3 -c 10000
+./DropSimulation -t $Procs -s 100000 -r 1/100 -u 10 -p 5 -l 3 -c 10000
