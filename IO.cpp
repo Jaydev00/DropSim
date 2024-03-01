@@ -166,6 +166,11 @@ bool IOUtils::parseArgs(const int& argc, char* argv[], SimArgs &argsStruct) {
                     return false;
                 }
                 infile.open(optarg);
+                std::cout << "optarg:" << optarg << std::endl;
+                if(infile.fail()){
+                    printHelpMsg(argv[0], "File does not exist");
+                    return false;
+                }
                 for (std::string temp; std::getline(infile, temp);) {
                     argsStruct.weightings.push_back(std::pair<int, int>(
                         stoi(temp.substr(0, temp.find(","))),
